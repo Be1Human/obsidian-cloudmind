@@ -195,6 +195,35 @@ await page.waitForTimeout(200);
 ok("Esc closes the gallery", (await page.locator(".cm-popover").count()) === 0);
 
 // ---------- 11. 深色主题：快捷条/工具栏不受影响，没有页面错误 ----------
+// ---------- 12. 手动填浅色的节点，在深色 / 蓝图主题里文字仍然看得清 ----------
+{
+  const lum = (c) => {
+    const m = /rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)/.exec(c) || [];
+    const ch = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
+    return 0.2126 * ch(+m[1]) + 0.7152 * ch(+m[2]) + 0.0722 * ch(+m[3]);
+  };
+  const hex = (h) => { const n = parseInt(h.slice(1), 16); return `rgb(${n >> 16},${(n >> 8) & 255},${n & 255})`; };
+  const ratio = (a, b) => { const [hi, lo] = lum(a) > lum(b) ? [lum(a), lum(b)] : [lum(b), lum(a)]; return (hi + 0.05) / (lo + 0.05); };
+  const md = "---\ncloudmind: true\n---\n# 根\n## 浅黄 <!--mm:{\"fillColor\":\"#FFE9A8\"}-->\n## 深蓝 <!--mm:{\"fillColor\":\"#2F3B52\"}-->\n## 自己指定了文字色 <!--mm:{\"fillColor\":\"#FFE9A8\",\"color\":\"#ff0000\"}-->\n## 普通\n";
+  for (const th of ["cloudBoxDark", "cloudBoxBlue", "xmindDark", "cloudBox"]) {
+    await page.evaluate(([t, th]) => { window.__view.setViewData(t, true); window.__view.applyTheme(th); }, [md, th]);
+    await page.waitForTimeout(700);
+    const res = await page.evaluate(() => {
+      const out = {};
+      const walk = (n) => { out[n.getData("text")] = { fill: n.getData("fillColor"), text: n.getStyle("color") }; n.children.forEach(walk); };
+      walk(window.mm().renderer.root);
+      return out;
+    });
+    const a = res["浅黄"], b = res["深蓝"], c = res["自己指定了文字色"];
+    ok(`${th}: pale-yellow node text is readable (>=4)`, ratio(a.text.startsWith("#") ? hex(a.text) : a.text, hex(a.fill)) >= 4, JSON.stringify(a));
+    ok(`${th}: navy node text is readable (>=4)`, ratio(b.text.startsWith("#") ? hex(b.text) : b.text, hex(b.fill)) >= 4, JSON.stringify(b));
+    ok(`${th}: an explicit text colour is never overridden`, c.text === "#ff0000", JSON.stringify(c));
+    ok(`${th}: nodes without custom fill keep the theme colour`, res["普通"].text !== undefined && res["普通"].fill === undefined, JSON.stringify(res["普通"]));
+  }
+  const saved = await page.evaluate(() => window.getText());
+  ok("the auto text colour is display-only (not written into the note)", !/"color":"#1F2937"|"color":"#FFFFFF"/i.test(saved.replace('"color":"#ff0000"', "")), saved);
+}
+
 console.log("page errors:", errors.length ? errors : "none");
 ok("no page errors", errors.length === 0);
 await browser.close();

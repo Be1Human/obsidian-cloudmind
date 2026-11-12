@@ -10,7 +10,9 @@ import Export from "simple-mind-map/src/plugins/Export.js";
 import ExportXMind from "simple-mind-map/src/plugins/ExportXMind.js";
 import NodeImgAdjust from "simple-mind-map/src/plugins/NodeImgAdjust.js";
 import TouchEvent from "simple-mind-map/src/plugins/TouchEvent.js";
+import Style from "simple-mind-map/src/core/render/node/Style.js";
 import icons from "simple-mind-map/src/svg/icons.js";
+import { readableTextOn } from "./contrast";
 import { FM_KEYS, ParsedDoc, buildFmUpdates, parseDoc, pickFm, serializeDoc } from "./mdTree";
 import { FILL_COLORS, LAYOUTS, RAINBOW, TEXT_COLORS, THEMES, defineThemes, themeDef, themePreview } from "./themes";
 import { POS_LABELS, ToolbarPos } from "./settings";
@@ -25,6 +27,16 @@ function setupMindMap() {
   if (pluginsReady) return;
   pluginsReady = true;
   defineThemes();
+
+  // 节点手动填了颜色但没指定文字色时，保证文字看得清（主题的文字色是按主题底色选的，
+  // 在深色主题里给节点填浅色会变成“浅底白字”）。只改显示，不写进笔记。
+  const origMerge = Style.prototype.merge;
+  Style.prototype.merge = function (this: any, prop: string, useRoot?: boolean) {
+    const value = origMerge.call(this, prop, useRoot);
+    if (prop !== "color" || this.getSelfStyle("color") !== undefined) return value;
+    const fill = this.getSelfStyle("fillColor");
+    return (fill && readableTextOn(fill, value)) || value;
+  };
   MindMap.usePlugin(Drag)
     .usePlugin(Select)
     .usePlugin(KeyboardNavigation)
@@ -1004,12 +1016,79 @@ export class CloudMindView extends TextFileView {
     bar.classList.add("is-show");
     const bw = bar.offsetWidth;
     const bh = bar.offsetHeight;
-    let x = r.left + r.width / 2 - bw / 2;
-    let y = r.top - bh - 10;
-    if (y < 6) y = r.top + r.height + 10; // 上方放不下就放下面
-    x = clamp(x, 6, Math.max(6, cw - bw - 6));
-    y = clamp(y, 6, Math.max(6, ch - bh - 6));
-    bar.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    const gap = 10;
+    const margin = 6;
+    const fit = (x: number, y: number) => ({
+      x: clamp(x, margin, Math.max(margin, cw - bw - margin)),
+      y: clamp(y, margin, Math.max(margin, ch - bh - margin)),
+    });
+    const cx = r.left + r.width / 2 - bw / 2;
+    // 候选位置，按偏好排序：上方居中 → 下方居中 → 上方左对齐 → 上方右对齐 → 下方左 / 右对齐
+    const cands = [
+      fit(cx, r.top - bh - gap),
+      fit(cx, r.top + r.height + gap),
+      fit(r.left, r.top - bh - gap),
+      fit(r.left + r.width - bw, r.top - bh - gap),
+      fit(r.left, r.top + r.height + gap),
+      fit(r.left + r.width - bw, r.top + r.height + gap),
+    ];
+    // 其它节点的位置：快捷条尽量不要盖住它们（节点很多时跳过，直接放上方）
+    const others = this.otherNodeRects(node, 500);
+    let bestIdx = 0;
+    if (others) {
+      const nodeCenterY = r.top + r.height / 2;
+      const scoreOf = (c: { x: number; y: number }) => {
+        let overlap = 0;
+        for (const o of others) {
+          const w = Math.min(c.x + bw, o.left + o.width) - Math.max(c.x, o.left);
+          const h = Math.min(c.y + bh, o.top + o.height) - Math.max(c.y, o.top);
+          if (w > 0 && h > 0) overlap += w * h;
+        }
+        // 被夹回画布边缘、离节点太远的候选略微扣分
+        const far = Math.abs(c.y + bh / 2 - nodeCenterY) > r.height / 2 + bh + gap * 3 ? 50 : 0;
+        return overlap + far;
+      };
+      const scores = cands.map(scoreOf);
+      let bestScore = Infinity;
+      scores.forEach((s, i) => {
+        if (s < bestScore - 1) {
+          bestScore = s;
+          bestIdx = i;
+        }
+      });
+      // 粘滞：平移时两个位置得分接近就保持上一次的，避免快捷条在上下之间来回跳
+      const same = this.nbNode === node;
+      if (same && this.nbIdx !== bestIdx && scores[this.nbIdx] <= bestScore + 400) bestIdx = this.nbIdx;
+    }
+    this.nbNode = node;
+    this.nbIdx = bestIdx;
+    const best = cands[bestIdx];
+    bar.style.transform = `translate(${Math.round(best.x)}px, ${Math.round(best.y)}px)`;
+  }
+
+  /** 快捷条上一次放在哪个候选位置（用于平移时保持稳定） */
+  private nbNode: any = null;
+  private nbIdx = 0;
+
+  /** 画布里除选中节点外所有节点的矩形（画布坐标）；节点超过 limit 个时返回 null */
+  private otherNodeRects(self: any, limit: number): { left: number; top: number; width: number; height: number }[] | null {
+    const root = this.mm?.renderer?.root;
+    if (!root) return null;
+    const out: { left: number; top: number; width: number; height: number }[] = [];
+    let count = 0;
+    const walk = (n: any): boolean => {
+      if (++count > limit) return false;
+      if (n !== self) {
+        try {
+          out.push(n.getRectInSvg());
+        } catch {
+          /* 节点还没渲染好 */
+        }
+      }
+      for (const c of n.children ?? []) if (!walk(c)) return false;
+      return true;
+    };
+    return walk(root) ? out : null;
   }
 
   /* ---------- 状态栏 ---------- */

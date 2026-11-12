@@ -6,6 +6,19 @@ Edit your Markdown notes as **XMind-style mind maps** in Obsidian. Nothing is co
 
 [中文说明见下方](#中文说明)
 
+![CloudMind: a Markdown note shown as a boxed mind map](docs/images/01-hero.png)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Theme gallery with four box themes](docs/images/02-themes.png) | ![Floating toolbar](docs/images/03-floating-toolbar.png) |
+| **Ten themes**, including four *box* themes where every node is framed. | **Floating toolbar** – drag the grip, or dock it on any side. |
+| ![Wikilink picker inside a node](docs/images/04-wikilinks.png) | ![Dark boxed theme](docs/images/05-dark-box.png) |
+| **Type `[[`** in a node to reference another note. | **Dark mode** – custom fills stay readable. |
+
+![Blueprint theme](docs/images/06-blueprint.png)
+
 ## Features
 
 - **Notes as mind maps** – headings (`#`) and nested lists (`-`) are the branches. Close the plugin and your notes are still plain, readable Markdown.

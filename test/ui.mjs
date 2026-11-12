@@ -250,6 +250,70 @@ await page.evaluate((t) => window.__view.setViewData(t, true), "---\ncloudmind: 
 await page.waitForTimeout(500);
 ok("empty map shows hint", await page.evaluate(() => document.querySelector(".cm-empty").classList.contains("is-show")));
 
+// ---------- 15. 快捷条会避开其它节点 ----------
+{
+  await page.evaluate((t) => window.__view.setViewData(t, true), `---
+cloudmind: true
+---
+# 中心
+## 甲
+- 甲一
+- 甲二
+- 甲三
+## 乙
+- 乙一
+- 乙二
+## 丙
+- 丙一
+`);
+  await page.waitForTimeout(800);
+  const overlapAll = async () => {
+    return page.evaluate(() => {
+      const bar = document.querySelector(".cm-nodebar.is-show");
+      if (!bar) return { shown: false };
+      const b = bar.getBoundingClientRect();
+      const c = document.querySelector(".cm-canvas").getBoundingClientRect();
+      const sel = window.mm().renderer.activeNodeList[0];
+      let worst = 0, hit = null;
+      const walk = (n) => {
+        if (n !== sel) {
+          const r = n.getRectInSvg();
+          const L = c.left + r.left, T = c.top + r.top;
+          const w = Math.min(b.right, L + r.width) - Math.max(b.left, L);
+          const h = Math.min(b.bottom, T + r.height) - Math.max(b.top, T);
+          if (w > 0 && h > 0 && w * h > worst) { worst = w * h; hit = n.getData("text"); }
+        }
+        n.children.forEach(walk);
+      };
+      walk(window.mm().renderer.root);
+      return { shown: true, worst, hit };
+    });
+  };
+  const names = ["中心", "甲", "乙", "丙", "甲一", "甲二", "甲三", "乙一", "乙二", "丙一"];
+  const measure = async () => {
+    let n = 0, area = 0;
+    for (const nm of names) {
+      await page.evaluate((nm) => {
+        let f = null;
+        const walk = (x) => { if (x.getData("text") === nm) f = x; x.children.forEach(walk); };
+        walk(window.mm().renderer.root);
+        window.mm().execCommand("CLEAR_ACTIVE_NODE");
+        f.active();
+      }, nm);
+      await page.waitForTimeout(180);
+      const o = await overlapAll();
+      if (o.shown && o.worst > 0) { n++; area += o.worst; }
+    }
+    return { n, area };
+  };
+  const avoid = await measure();
+  await page.evaluate(() => { window.__realRects = window.__view.otherNodeRects; window.__view.otherNodeRects = () => null; });
+  const fixed = await measure(); // 旧做法：固定放在节点上方
+  await page.evaluate(() => { window.__view.otherNodeRects = window.__realRects; });
+  console.log(`  quick bar overlap: avoiding ${avoid.n}/10 (${avoid.area}px²)  vs fixed-above ${fixed.n}/10 (${fixed.area}px²)`);
+  ok("quick bar overlaps fewer nodes than always-above", avoid.n < fixed.n, JSON.stringify({ avoid, fixed }));
+  ok("quick bar covers at least 50% less node area than always-above", avoid.area <= fixed.area * 0.5, JSON.stringify({ avoid, fixed }));  await page.screenshot({ path: path.join(dir, "ui-nodebar-avoid.png") });
+}
 console.log("page errors:", errors.length ? errors : "none");
 ok("no page errors", errors.length === 0);
 await browser.close();

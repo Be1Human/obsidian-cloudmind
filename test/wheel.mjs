@@ -182,7 +182,32 @@ const barPos = () =>
     return { shown: bar.classList.contains("is-show"), nodeCx: c.left + r.left + r.width / 2, nodeTop: c.top + r.top, barCx: b.left + b.width / 2, barBottom: b.bottom };
   });
 const p1 = await barPos();
-ok("quick bar follows the node while it stays in view", p1.shown && Math.abs(p1.barCx - p1.nodeCx) < 2 && p1.barBottom <= p1.nodeTop + 1, JSON.stringify(p1));
+ok("quick bar stays attached to the node while it stays in view (within 160px, not stranded)", p1.shown && Math.abs(p1.barCx - p1.nodeCx) < 160 && Math.abs(p1.barBottom - p1.nodeTop) < 160, JSON.stringify(p1));
+await page.evaluate(() => window.__view.scheduleNodeBar && 0);
+const p1b = await barPos();
+await burst(2, 0, -20, 8); // 往回平移 40px（内容向下），上方有空间
+await page.waitForTimeout(400);
+const p1c = await barPos();
+ok("quick bar moves with the node when panning (follows by the same offset)", p1c.shown && Math.abs((p1c.barBottom - p1b.barBottom) - (p1c.nodeTop - p1b.nodeTop)) < 3, JSON.stringify([p1b, p1c]));
+// 靠近上边缘时翻到下方；再往回平移不应该在两个位置间抖动（粘滞）
+await burst(8, 0, 20, 8);
+await page.waitForTimeout(300);
+const flips = await page.evaluate(async () => {
+  const seq = [];
+  const bar = document.querySelector(".cm-nodebar");
+  const n = window.mm().renderer.activeNodeList[0];
+  for (let i = 0; i < 40; i++) {
+    window.mm().view.translateXY(0, 2);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    if (!bar.classList.contains("is-show")) { seq.push("hidden"); continue; }
+    const b = bar.getBoundingClientRect(), c = document.querySelector(".cm-canvas").getBoundingClientRect(), r = n.getRectInSvg();
+    seq.push(b.top < c.top + r.top ? "above" : "below");
+  }
+  let changes = 0;
+  for (let i = 1; i < seq.length; i++) if (seq[i] !== seq[i - 1] && seq[i] !== "hidden" && seq[i - 1] !== "hidden") changes++;
+  return { changes, seq: seq.join(",") };
+});
+ok("quick bar does not flicker between above/below while panning slowly (<=1 switch)", flips.changes <= 1, JSON.stringify(flips));
 await burst(20, 0, 20, 8); // 再平移 400px：节点滚出画布
 await page.waitForTimeout(500);
 const p2 = await barPos();

@@ -9,6 +9,8 @@ test/.verify.cjs
 test/harness.js
 test/harness.html
 test/*.png
+test/.shot-*.html
+test/.contrast.cjs
 
 # 编辑器 / 系统
 .DS_Store

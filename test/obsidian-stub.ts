@@ -1,4 +1,6 @@
 // 仅用于浏览器冒烟测试：模拟 obsidian 模块的最小子集
+import icons from "./icons.json";
+
 const w = window as any;
 w.__saves = 0;
 
@@ -115,8 +117,10 @@ export class Notice {
 }
 export function setIcon(el: HTMLElement, name: string) {
   el.dataset.icon = name;
-  // 占位图标：真实 Obsidian 会画 lucide 图标，这里画个形状让截图能看出按钮布局
+  // 真实 Obsidian 会画 lucide 图标；测试里用 lucide-static 导出的映射，没有的名字退回占位方块
+  const svg = (icons as Record<string, string>)[name.replace(/^lucide-/, "")];
   el.innerHTML =
+    svg ??
     '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 12h8"/></svg>';
 }
 export function normalizePath(p: string) {

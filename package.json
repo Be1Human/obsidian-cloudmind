@@ -1,6 +1,6 @@
 {
   "name": "cloudmind",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "XMind-style mind maps for Obsidian, stored as plain Markdown.",
   "main": "main.js",
   "license": "MIT",
@@ -10,8 +10,10 @@
     "build": "node esbuild.config.mjs production",
     "typecheck": "tsc -noEmit -skipLibCheck",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
-    "test:md": "esbuild test/roundtrip.test.ts --bundle --platform=node --outfile=test/.out.cjs --log-level=error && node test/.out.cjs",
-    "test:ui": "esbuild test/harness.ts --bundle --format=iife --outfile=test/harness.js --alias:obsidian=./test/obsidian-stub.ts --main-fields=module,main --log-level=error && node test/make-html.mjs && node test/smoke.mjs && node test/idle.mjs && node test/ui.mjs && node test/wiki.mjs && node test/wheel.mjs && node test/theme.mjs",
+    "test:md": "esbuild test/roundtrip.test.ts --bundle --platform=node --outfile=test/.out.cjs --log-level=error && node test/.out.cjs && esbuild test/contrast.test.ts --bundle --platform=node --outfile=test/.contrast.cjs --log-level=error && node test/.contrast.cjs",
+    "test:ui": "esbuild test/harness.ts --bundle --format=iife --outfile=test/harness.js --alias:obsidian=./test/obsidian-stub.ts --main-fields=module,main --loader:.json=json --log-level=error && node test/make-html.mjs && node test/smoke.mjs && node test/idle.mjs && node test/ui.mjs && node test/wiki.mjs && node test/wheel.mjs && node test/theme.mjs",
+    "shots": "npm run build:harness && node test/shots.mjs",
+    "build:harness": "esbuild test/harness.ts --bundle --format=iife --outfile=test/harness.js --alias:obsidian=./test/obsidian-stub.ts --main-fields=module,main --loader:.json=json --log-level=error",
     "test": "npm run test:md && npm run test:ui"
   },
   "dependencies": {
@@ -20,6 +22,7 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "esbuild": "^0.28.2",
+    "lucide-static": "^1.72.0",
     "obsidian": "^1.14.4",
     "playwright-core": "^1.65.0",
     "tslib": "^2.9.1",
