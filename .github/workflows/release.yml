@@ -1,0 +1,43 @@
+name: Release Obsidian plugin
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: npm
+
+      - name: Build plugin
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+
+      - name: Check tag matches manifest version
+        run: |
+          v=$(node -p "require('./manifest.json').version")
+          if [ "$v" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag (${GITHUB_REF_NAME}) does not match manifest.json version ($v)"
+            exit 1
+          fi
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title="${GITHUB_REF_NAME}" \
+            --generate-notes \
+            main.js manifest.json styles.css

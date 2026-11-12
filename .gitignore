@@ -1,0 +1,17 @@
+# 依赖与构建产物（main.js 通过 GitHub Release 发布，不入库）
+node_modules/
+main.js
+*.log
+
+# 测试生成物
+test/.out.cjs
+test/.verify.cjs
+test/harness.js
+test/harness.html
+test/*.png
+
+# 编辑器 / 系统
+.DS_Store
+.vscode/
+.idea/
+data.json
