@@ -4,6 +4,6 @@
   "version": "0.4.0",
   "minAppVersion": "1.5.0",
   "description": "Edit Markdown notes as XMind-style mind maps with a dockable or floating toolbar, themes and wikilink references. Everything is stored in the note itself.",
-  "author": "cloudboy",
+  "author": "Be1Human",
   "isDesktopOnly": true
 }
