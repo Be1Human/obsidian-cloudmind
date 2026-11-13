@@ -46,6 +46,15 @@ export class TextFileView {
   constructor(public leaf: any) {}
   addAction() {}
   registerEvent() {}
+  private __doms: (() => void)[] = [];
+  registerDomEvent(el: any, type: string, cb: any, opts?: any) {
+    el.addEventListener(type, cb, opts);
+    this.__doms.push(() => el.removeEventListener(type, cb, opts));
+  }
+  onunload() {
+    this.__doms.forEach((f) => f());
+    this.__doms = [];
+  }
   requestSave() {
     w.__saves++;
   }

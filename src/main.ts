@@ -4,7 +4,7 @@ import { FM_MARK, LEGACY_MARKS, hasMindmapMark, newMindmapText } from "./mdTree"
 import { CloudMindSettings, DEFAULT_SETTINGS } from "./settings";
 import { CloudMindSettingTab } from "./settingTab";
 
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 
 export default class CloudMindPlugin extends Plugin {
   settings: CloudMindSettings = { ...DEFAULT_SETTINGS };

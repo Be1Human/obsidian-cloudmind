@@ -54,6 +54,17 @@ const plugin: any = {
 w.__plugin = plugin;
 
 w.boot = async (text: string, settings: any = {}) => {
+  // 先关掉上一个视图，否则它的 window 键盘监听会一直在，干扰新视图
+  if (w.__view) {
+    try {
+      await w.__view.onClose();
+      w.__view.onunload?.();
+    } catch {
+      /* ignore */
+    }
+    w.__view.contentEl.remove();
+    w.__view = null;
+  }
   plugin.settings = { ...DEFAULT_SETTINGS, ...settings };
   const host = document.getElementById("host")!;
   const view = new CloudMindView({} as any, plugin);

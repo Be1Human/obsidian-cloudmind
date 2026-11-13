@@ -314,6 +314,80 @@ cloudmind: true
   ok("quick bar overlaps fewer nodes than always-above", avoid.n < fixed.n, JSON.stringify({ avoid, fixed }));
   ok("quick bar covers at least 50% less node area than always-above", avoid.area <= fixed.area * 0.5, JSON.stringify({ avoid, fixed }));  await page.screenshot({ path: path.join(dir, "ui-nodebar-avoid.png") });
 }
+// ---------- 16. 删除键：普通 / 输入法(keyCode 229) / Ctrl / Shift，编辑中和组字中不误删 ----------
+{
+  const md = "---\ncloudmind: true\n---\n# 根\n## 甲\n- 甲一\n- 甲二\n## 乙\n- 乙一\n## 丙\n## 丁\n## 戊\n## 己\n";
+  const names = () => page.evaluate(() => { const o = []; const w = (x) => { o.push(x.getData("text")); x.children.forEach(w); }; w(window.mm().renderer.root); return o.join(","); });
+  const selNode = (nm) => page.evaluate((nm) => { let f; const w = (x) => { if (x.getData("text") === nm) f = x; x.children.forEach(w); }; w(window.mm().renderer.root); window.mm().execCommand("CLEAR_ACTIVE_NODE"); f.active(); }, nm);
+  const press = (init) => page.evaluate((i) => {
+    const e = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...i });
+    if (i.keyCode) Object.defineProperty(e, "keyCode", { get: () => i.keyCode });
+    (document.activeElement || document.body).dispatchEvent(e);
+    return e.defaultPrevented;
+  }, init);
+  const fresh = async () => { await page.evaluate((t) => window.__view.setViewData(t, true), md); await page.waitForTimeout(700); };
+
+  await fresh(); await selNode("甲一"); await press({ key: "Backspace", code: "Backspace", keyCode: 8 }); await page.waitForTimeout(300);
+  ok("Backspace deletes the selected node", !(await names()).includes("甲一"), await names());
+
+  await fresh(); await selNode("甲一"); await press({ key: "Process", code: "Backspace", keyCode: 229 }); await page.waitForTimeout(300);
+  ok("IME Backspace (keyCode 229) deletes the node instead of entering text edit", !(await names()).includes("甲一") && !(await page.evaluate(() => window.mm().renderer.textEdit.isShowTextEdit())), await names());
+
+  await fresh(); await selNode("甲二"); await press({ key: "Process", code: "Delete", keyCode: 229 }); await page.waitForTimeout(300);
+  ok("IME Delete (keyCode 229) deletes the node", !(await names()).includes("甲二"), await names());
+
+  await fresh(); await selNode("丙"); await press({ key: "Backspace", code: "Backspace", keyCode: 8, ctrlKey: true }); await page.waitForTimeout(300);
+  ok("Ctrl+Backspace deletes the node", !(await names()).includes("丙"), await names());
+
+  await fresh(); await selNode("甲"); await press({ key: "Backspace", code: "Backspace", keyCode: 8, shiftKey: true }); await page.waitForTimeout(300);
+  ok("Shift+Backspace deletes only the node and keeps its children", (await names()) === "根,甲一,甲二,乙,乙一,丙,丁,戊,己", await names());
+
+  await fresh(); await selNode("甲"); await press({ key: "Backspace", code: "Backspace", keyCode: 8 }); await page.waitForTimeout(300);
+  ok("deleting a parent removes its children too", !/甲/.test(await names()), await names());
+
+  await fresh(); await page.evaluate(() => window.mm().execCommand("CLEAR_ACTIVE_NODE")); await page.waitForTimeout(150);
+  const before = await names(); await press({ key: "Backspace", code: "Backspace", keyCode: 8 }); await page.waitForTimeout(300);
+  ok("nothing selected: Backspace does nothing", (await names()) === before);
+
+  await fresh(); await selNode("根"); await press({ key: "Backspace", code: "Backspace", keyCode: 8 }); await page.waitForTimeout(300);
+  ok("the central topic cannot be deleted (keyboard)", (await names()).startsWith("根,") && (await names()).split(",").length > 5, await names());
+  await fresh(); await selNode("根"); await page.click('.cm-nodebar [data-id="delete"]'); await page.waitForTimeout(300);
+  ok("the central topic cannot be deleted (quick-bar trash)", (await names()).split(",").length > 5, await names());
+  await fresh(); await selNode("根"); await page.evaluate(() => window.__view.showNodeMenu({ clientX: 5, clientY: 5 })); await page.evaluate(() => window.__menu.items.find((i) => /^删除/.test(i.title)).fn()); await page.waitForTimeout(300);
+  ok("the central topic cannot be deleted (context menu)", (await names()).split(",").length > 5, await names());
+  await fresh(); await selNode("甲二"); await page.click('.cm-nodebar [data-id="delete"]'); await page.waitForTimeout(300);
+  ok("quick-bar trash still deletes a normal node", !(await names()).includes("甲二"), await names());
+
+  // 编辑文字时：退格删字符，不能删节点
+  await fresh(); await selNode("丁"); await page.keyboard.press("F2"); await page.waitForTimeout(300);
+  await page.keyboard.press("End"); await page.keyboard.press("Backspace"); await page.waitForTimeout(150);
+  ok("while editing, Backspace edits the text and keeps editing (node not deleted)", (await page.evaluate(() => document.querySelector(".smm-node-edit-wrap").textContent)) === "" && (await page.evaluate(() => window.mm().renderer.textEdit.isShowTextEdit())) && (await names()).split(",").length === 10, await names());
+  await page.keyboard.type("庚"); await page.keyboard.press("Enter"); await page.waitForTimeout(300);
+  ok("...and the edited text is saved", (await names()).includes("庚"), await names());
+
+  // 输入法组字过程中的退格（删拼音）不能删节点
+  await fresh(); await selNode("戊"); await press({ key: "Process", code: "Backspace", keyCode: 229, isComposing: true }); await page.waitForTimeout(300);
+  ok("Backspace while composing (isComposing) is ignored", (await names()).includes("戊"), await names());
+
+  // 选择列表打开时，退格交给列表 / 编辑框，不删节点
+  await fresh(); await selNode("己"); await page.keyboard.press("F2"); await page.waitForTimeout(250);
+  await page.keyboard.press("End"); await page.keyboard.type("[["); await page.waitForTimeout(250);
+  await page.keyboard.press("Backspace"); await page.waitForTimeout(250);
+  ok("with the note picker open, Backspace does not delete the node", (await names()).includes("己") || (await page.evaluate(() => window.mm().renderer.textEdit.isShowTextEdit())), await names());
+  await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await page.keyboard.press("Enter"); await page.waitForTimeout(300);
+
+  // 多选后一起删
+  await fresh(); await page.evaluate(() => window.mm().execCommand("SELECT_ALL")); await page.waitForTimeout(200);
+  await press({ key: "Process", code: "Backspace", keyCode: 229 }); await page.waitForTimeout(400);
+  ok("select-all + IME Backspace removes every node except the root", (await names()) === "根", await names());
+
+  // 删除后可撤销
+  await fresh(); await selNode("乙"); await press({ key: "Process", code: "Backspace", keyCode: 229 }); await page.waitForTimeout(500);
+  const mdAfter = await page.evaluate(() => window.getText());
+  ok("deleted node is removed from the saved Markdown", !/## 乙/.test(mdAfter), mdAfter);
+  await page.keyboard.press("Control+z"); await page.waitForTimeout(500);
+  ok("Ctrl+Z brings the deleted node back", (await names()).includes("乙"), await names());
+}
 console.log("page errors:", errors.length ? errors : "none");
 ok("no page errors", errors.length === 0);
 await browser.close();

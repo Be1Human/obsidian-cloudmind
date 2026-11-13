@@ -264,6 +264,11 @@ export class CloudMindView extends TextFileView {
     this.wiki = new WikiSuggest(this.app, () => this.file?.path ?? "");
     this.wiki.attach();
 
+    // 删除键：用物理键位判断，不依赖 keyCode。
+    // 中文输入法开着时，Windows 上 Backspace / Delete 的 keyCode 常常是 229（“输入法处理中”），
+    // 库会把它当成“开始打字”而进入文字编辑，而不是删除节点。放在捕获阶段，抢在库之前处理。
+    this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => this.onDeleteKey(e), true);
+
     this.ro = new ResizeObserver(() => this.handleResize());
     this.ro.observe(this.stageEl);
 
@@ -591,6 +596,38 @@ export class CloudMindView extends TextFileView {
     });
   }
 
+  private onDeleteKey(e: KeyboardEvent) {
+    const isDel = e.code === "Backspace" || e.code === "Delete" || e.key === "Backspace" || e.key === "Delete";
+    if (!isDel || !this.mm || e.altKey) return;
+    // 组字过程中（拼音还没上屏）的退格是删拼音，不能当成删节点
+    if (e.isComposing) return;
+    if (this.editing || this.mm.renderer.textEdit?.isShowTextEdit?.()) return;
+    if (!this.canHandleKey(e) || !this.hasSel()) return;
+    // 有弹层 / 选择列表打开时交给它们
+    if (this.popEl || this.wiki?.isOpen) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    this.deleteSelection(e.shiftKey);
+  }
+
+  /**
+   * 删除选中的节点（键盘、工具栏、快捷条、右键菜单统一走这里）。
+   * 中心主题不能删：库里选中根节点再删除，会把整张导图的子节点全部清空，一次误触代价太大。
+   * onlyCurrent：只删当前节点，保留它的子节点。
+   */
+  private deleteSelection(onlyCurrent = false) {
+    if (!this.mm || !this.hasSel()) return;
+    const rootSelected = this.sel().filter((n) => n.isRoot);
+    if (rootSelected.length) {
+      if (this.sel().length === rootSelected.length) {
+        new Notice("中心主题不能删除");
+        return;
+      }
+      rootSelected.forEach((n) => this.mm.renderer.removeNodeFromActiveList(n));
+    }
+    this.mm.execCommand(onlyCurrent ? "REMOVE_CURRENT_NODE" : "REMOVE_NODE");
+  }
+
   private canHandleKey(e: KeyboardEvent): boolean {
     const t = e.target as HTMLElement | null;
     if (t?.closest?.(".modal-container, .menu, .suggestion-container, .prompt, .cm-popover")) return false;
@@ -885,7 +922,7 @@ export class CloudMindView extends TextFileView {
     S({ id: "fold", icon: "chevrons-down-up", label: "折叠", tip: "折叠 / 展开层级 (选中节点按 / )", run: (ev) => this.showExpandMenu(ev) });
     S({ id: "export", icon: "download", label: "导出", tip: "导出图片 / .xmind", run: (ev) => this.showExportMenu(ev) });
     S({ id: "more", icon: "more-horizontal", label: "设置", tip: "工具栏位置与显示设置", run: (ev) => this.showToolbarMenu(ev) });
-    S({ id: "delete", icon: "trash-2", label: "删除", tip: "删除选中节点 (Del)", need: true, run: () => mm()?.execCommand("REMOVE_NODE") });
+    S({ id: "delete", icon: "trash-2", label: "删除", tip: "删除选中节点 (Del)", need: true, run: () => this.deleteSelection() });
   }
 
   private makeBtn(spec: BtnSpec, parent: HTMLElement, withLabel: boolean): HTMLButtonElement {
@@ -1404,8 +1441,8 @@ export class CloudMindView extends TextFileView {
     menu.addItem((i) => i.setTitle("剪切    Ctrl+X").setIcon("scissors").onClick(() => mm.renderer.cut()));
     menu.addItem((i) => i.setTitle("粘贴    Ctrl+V").setIcon("clipboard-paste").onClick(() => mm.renderer.paste()));
     menu.addSeparator();
-    menu.addItem((i) => i.setTitle("删除    Del").setIcon("trash-2").onClick(exec("REMOVE_NODE")));
-    menu.addItem((i) => i.setTitle("仅删除当前节点    Shift+Backspace").setIcon("trash").onClick(exec("REMOVE_CURRENT_NODE")));
+    menu.addItem((i) => i.setTitle("删除    Del").setIcon("trash-2").onClick(() => this.deleteSelection()));
+    menu.addItem((i) => i.setTitle("仅删除当前节点    Shift+Backspace").setIcon("trash").onClick(() => this.deleteSelection(true)));
     menu.showAtMouseEvent(e);
   }
 
