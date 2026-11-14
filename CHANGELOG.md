@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.5
+
+- Improved: dragging a topic to reorder is much easier to aim. The top / bottom 30% of a topic now means insert above / below (the middle makes it a child), the drop zone extends half-way to the neighbouring topics and about 56px to the left and right, and the drop position is re-evaluated on release instead of every 300ms. In tests, 24 of 24 drops land where intended (4 of 24 before). Applies to the mind map and logic chart layouts; other layouts keep the previous rules but react faster.
+
 ## 0.4.4
 
 - Fixed: the icon picker only listed numbers (1, 2, 3…) instead of the icons. It is now a visual panel showing all icons by group (priority, progress, emoji, markers); click to add, click again to remove, one icon per group, plus 

@@ -1,6 +1,6 @@
 {
   "name": "cloudmind",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "XMind-style mind maps for Obsidian, stored as plain Markdown.",
   "main": "main.js",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "typecheck": "tsc -noEmit -skipLibCheck",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "test:md": "esbuild test/roundtrip.test.ts --bundle --platform=node --outfile=test/.out.cjs --log-level=error && node test/.out.cjs && esbuild test/contrast.test.ts --bundle --platform=node --outfile=test/.contrast.cjs --log-level=error && node test/.contrast.cjs",
-    "test:ui": "esbuild test/harness.ts --bundle --format=iife --outfile=test/harness.js --alias:obsidian=./test/obsidian-stub.ts --main-fields=module,main --loader:.json=json --log-level=error && node test/make-html.mjs && node test/smoke.mjs && node test/idle.mjs && node test/ui.mjs && node test/wiki.mjs && node test/wheel.mjs && node test/theme.mjs",
+    "test:ui": "esbuild test/harness.ts --bundle --format=iife --outfile=test/harness.js --alias:obsidian=./test/obsidian-stub.ts --main-fields=module,main --loader:.json=json --log-level=error && node test/make-html.mjs && node test/smoke.mjs && node test/idle.mjs && node test/ui.mjs && node test/wiki.mjs && node test/wheel.mjs && node test/theme.mjs && node test/drag.mjs",
     "shots": "npm run build:harness && node test/shots.mjs",
     "shots:obsidian": "node test/obsidian-real.mjs shots",
     "build:harness": "esbuild test/harness.ts --bundle --format=iife --outfile=test/harness.js --alias:obsidian=./test/obsidian-stub.ts --main-fields=module,main --loader:.json=json --log-level=error",

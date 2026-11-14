@@ -13,6 +13,7 @@ import TouchEvent from "simple-mind-map/src/plugins/TouchEvent.js";
 import Style from "simple-mind-map/src/core/render/node/Style.js";
 import icons from "simple-mind-map/src/svg/icons.js";
 import { readableTextOn } from "./contrast";
+import { improveDrag } from "./dragFix";
 import { FM_KEYS, ParsedDoc, buildFmUpdates, parseDoc, pickFm, serializeDoc } from "./mdTree";
 import { FILL_COLORS, LAYOUTS, RAINBOW, TEXT_COLORS, THEMES, defineThemes, themeDef, themePreview } from "./themes";
 import { POS_LABELS, ToolbarPos } from "./settings";
@@ -37,6 +38,8 @@ function setupMindMap() {
     const fill = this.getSelfStyle("fillColor");
     return (fill && readableTextOn(fill, value)) || value;
   };
+  // 拖拽换位置：感应区更宽、判定更及时
+  improveDrag(Drag);
   MindMap.usePlugin(Drag)
     .usePlugin(Select)
     .usePlugin(KeyboardNavigation)

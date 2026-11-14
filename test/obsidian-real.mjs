@@ -224,6 +224,48 @@ const crop = async (name, { pad = 36, extra = [], minW = 0, minH = 0 } = {}) => 
   console.log("cropped", name, JSON.stringify(r));
 };
 
+// 拖拽换位置（真实鼠标）
+if (MODE === "drag") {
+  await win.evaluate(async () => {
+    const f = window.app.vault.getAbstractFileByPath("读书/原子习惯.md");
+    await window.app.workspace.getLeaf(false).openFile(f);
+  });
+  await sleep(800);
+  await win.click(".workspace-leaf.mod-active .view-action.cm-header-btn");
+  await sleep(1800);
+  const rectOf = (t) =>
+    win.evaluate((t) => {
+      const v = window.app.workspace.activeLeaf.view;
+      let f;
+      const w = (x) => { if (x.getData("text") === t) f = x; x.children.forEach(w); };
+      w(v.mm.renderer.root);
+      const r = f.getRectInSvg();
+      const c = v.mm.el.getBoundingClientRect();
+      return { left: c.left + r.left, top: c.top + r.top, width: r.width, height: r.height };
+    }, t);
+  const order = () => win.evaluate(() => {
+    const v = window.app.workspace.activeLeaf.view;
+    const s = (n) => n.getData("text") + (n.children.length ? "(" + n.children.map(s).join(",") + ")" : "");
+    return s(v.mm.renderer.root.children.find((n) => n.getData("text") === "四大定律"));
+  });
+  console.log("before:", await order());
+  const drag = async (from, to, y) => {
+    const a = await rectOf(from), b = await rectOf(to);
+    await win.mouse.move(a.left + a.width / 2, a.top + a.height / 2);
+    await win.mouse.down();
+    await win.mouse.move(b.left + b.width / 2, b.top + b.height * y, { steps: 12 });
+    await win.mouse.up();
+    await sleep(700);
+    console.log(`drag ${from} → ${to} @${y}:`, await order());
+  };
+  await drag("让它令人愉悦", "让它显而易见", 0.15); // 期望：移到最前
+  await drag("让它简便易行", "让它显而易见", 0.85); // 期望：成为第 2 个
+  await drag("让它有吸引力", "让它令人愉悦", 0.5); // 期望：成为“让它令人愉悦”的子节点
+  const md = await win.evaluate(() => window.app.workspace.activeLeaf.view.getViewData());
+  console.log("saved md excerpt:\n" + md.split("## 四大定律")[1].split("## 我的行动")[0]);
+  await app.close();
+  process.exit(0);
+}
 // 图标面板
 if (MODE === "icons") {
   await win.evaluate(async () => {
