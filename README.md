@@ -83,7 +83,7 @@ To always open a note as a map, add `cloudmind: true` to its front matter. New m
 <table>
 <tr>
 <td width="50%"><img src="docs/images/02-themes.png"><br><b>10 themes</b>, four of them with every node framed in a box.</td>
-<td width="50%"><img src="docs/images/04-wikilinks.png"><br><b>[[Wikilinks]] in nodes.</b> <code>Ctrl</code>+click opens the note.</td>
+<td width="50%"><img src="docs/images/04-wikilinks.png"><br><b>[[Wikilinks]] in nodes</b>, shown as underlined note names. <code>Ctrl</code>+click opens the note.</td>
 </tr>
 <tr>
 <td><img src="docs/images/03-floating-toolbar.png"><br><b>Toolbar anywhere:</b> top, bottom, left, right, floating or hidden.</td>

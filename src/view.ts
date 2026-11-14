@@ -11,13 +11,14 @@ import ExportXMind from "simple-mind-map/src/plugins/ExportXMind.js";
 import NodeImgAdjust from "simple-mind-map/src/plugins/NodeImgAdjust.js";
 import TouchEvent from "simple-mind-map/src/plugins/TouchEvent.js";
 import Style from "simple-mind-map/src/core/render/node/Style.js";
+import nodeCreateContents from "simple-mind-map/src/core/render/node/nodeCreateContents.js";
 import icons from "simple-mind-map/src/svg/icons.js";
 import { readableTextOn } from "./contrast";
 import { improveDrag } from "./dragFix";
 import { FM_KEYS, ParsedDoc, buildFmUpdates, parseDoc, pickFm, serializeDoc } from "./mdTree";
 import { FILL_COLORS, LAYOUTS, RAINBOW, TEXT_COLORS, THEMES, defineThemes, themeDef, themePreview } from "./themes";
 import { POS_LABELS, ToolbarPos } from "./settings";
-import { WikiLink, WikiSuggest, extractLinks } from "./wikilink";
+import { WikiLink, WikiSuggest, displayLinkText, extractLinks } from "./wikilink";
 import { SmoothWheel } from "./wheel";
 import type CloudMindPlugin from "./main";
 
@@ -37,6 +38,13 @@ function setupMindMap() {
     if (prop !== "color" || this.getSelfStyle("color") !== undefined) return value;
     const fill = this.getSelfStyle("fillColor");
     return (fill && readableTextOn(fill, value)) || value;
+  };
+  // 节点上不显示 [[ ]]：[[笔记]] 显示成带下划线的“笔记”。只改画出来的文字，
+  // 编辑时（双击 / F2）仍显示原文，保存的也是原文
+  const origTextNode = nodeCreateContents.createTextNode;
+  nodeCreateContents.createTextNode = function (this: any, specifyText?: string) {
+    const raw: unknown = typeof specifyText === "string" ? specifyText : this.getData("text");
+    return origTextNode.call(this, typeof raw === "string" ? displayLinkText(raw) : raw);
   };
   // 拖拽换位置：感应区更宽、判定更及时
   improveDrag(Drag);

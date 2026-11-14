@@ -215,6 +215,21 @@ await page.evaluate(() => window.mm().execCommand("CLEAR_ACTIVE_NODE"));
 await page.waitForTimeout(300);
 ok("引用 disabled when nothing selected", await page.evaluate(() => document.querySelector('.cm-toolbar [data-id="wikilink"]').disabled));
 
+// ---------- 节点上显示链接名，不显示 [[ ]]；编辑时显示原文；文件里保存原文 ----------
+{
+  await page.evaluate((t) => window.__view.setViewData(t, true), "---\ncloudmind: true\n---\n# 根\n## 看 [[读书清单 2026]]\n## [[原子习惯|别名]]\n## [[原子习惯#四大定律]]\n## 普通 [ 方括号 ]\n");
+  await page.waitForTimeout(700);
+  const shown = await page.evaluate(() => window.mm().renderer.root.children.map((n) => n.group.node.querySelector("text")?.textContent));
+  ok("link shown without brackets", shown[0] === "看 读书清单 2026", JSON.stringify(shown));
+  ok("alias shown instead of target", shown[1] === "别名", JSON.stringify(shown));
+  ok("heading link shown as 'note > heading'", shown[2] === "原子习惯 > 四大定律", JSON.stringify(shown));
+  ok("plain brackets untouched", shown[3] === "普通 [ 方括号 ]", JSON.stringify(shown));
+  ok("data keeps the raw link", await page.evaluate(() => window.mm().renderer.root.children[0].getData("text")) === "看 [[读书清单 2026]]");
+  await page.evaluate(() => { const n = window.mm().renderer.root.children[0]; window.mm().execCommand("CLEAR_ACTIVE_NODE"); n.active(); window.mm().renderer.textEdit.show({ node: n }); });
+  await page.waitForTimeout(300);
+  ok("editing shows the raw [[link]]", (await page.evaluate(() => document.querySelector(".smm-node-edit-wrap")?.innerText)) === "看 [[读书清单 2026]]");
+  await page.keyboard.press("Escape");
+}
 console.log("page errors:", errors.length ? errors : "none");
 ok("no page errors", errors.length === 0);
 await browser.close();

@@ -24,6 +24,21 @@ export function extractLinks(text: string | undefined | null): WikiLink[] {
   return out;
 }
 
+/**
+ * 导图上显示的文字：把 [[笔记]] 显示成“笔记”，[[笔记|别名]] 显示成“别名”，
+ * [[笔记#标题]] 显示成“笔记 > 标题”（和 Obsidian 阅读模式一致）。只影响显示，数据里仍是原文。
+ */
+export function displayLinkText(text: string): string {
+  if (!text || !text.includes("[[")) return text;
+  return text.replace(new RegExp(LINK_RE.source, "g"), (_m, target: string, heading?: string, alias?: string) => {
+    const a = (alias ?? "").trim();
+    if (a) return a;
+    const t = target.trim();
+    const h = (heading ?? "").trim();
+    return h ? `${t} > ${h}` : t;
+  });
+}
+
 interface Item {
   file: TFile;
   link: string;

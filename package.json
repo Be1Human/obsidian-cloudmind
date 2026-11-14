@@ -1,6 +1,6 @@
 {
   "name": "cloudmind",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "XMind-style mind maps for Obsidian, stored as plain Markdown.",
   "main": "main.js",
   "license": "MIT",

@@ -10,6 +10,10 @@ declare module "simple-mind-map/src/core/render/node/Style.js" {
   const Style: any;
   export default Style;
 }
+declare module "simple-mind-map/src/core/render/node/nodeCreateContents.js" {
+  const methods: Record<string, (...args: any[]) => any>;
+  export default methods;
+}
 declare module "simple-mind-map/src/svg/icons.js" {
   const icons: any;
   export default icons;

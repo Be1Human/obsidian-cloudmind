@@ -83,7 +83,7 @@ Mac / Linux：`ln -s ~/我的库/.obsidian/plugins/cloudmind ~/第二个库/.obs
 <table>
 <tr>
 <td width="50%"><img src="docs/images/02-themes.png"><br><b>10 套主题</b>，其中 4 套“方块风”，每个节点都有方框。</td>
-<td width="50%"><img src="docs/images/04-wikilinks.png"><br><b>节点里写 [[双链]]</b>，<code>Ctrl</code>+点击打开笔记。</td>
+<td width="50%"><img src="docs/images/04-wikilinks.png"><br><b>节点里写 [[双链]]</b>，显示为带下划线的笔记名，<code>Ctrl</code>+点击打开。</td>
 </tr>
 <tr>
 <td><img src="docs/images/03-floating-toolbar.png"><br><b>工具栏随意放</b>：上下左右、悬浮拖动或隐藏。</td>
