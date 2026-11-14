@@ -147,5 +147,38 @@ check("false value not recognised", !hasMindmapMark("---\ncloudmind: false\n---\
   check("migrate: other fm kept", out.includes("tags: [t]"), out);
 }
 
+// ---------- 备注里含有像列表 / 标题的行：保存后再读回，不能变成新节点 ----------
+{
+  const notes = [
+    "- 第一点\n- 第二点",
+    "1. 步骤一\n2. 步骤二",
+    "# 不是标题",
+    "* 星号\n+ 加号\n1) 括号序号",
+    "说明：\n- 要点一\n  - 子要点\n结尾",
+    "```\n- 代码里不转义\n# 也不\n```\n之后",
+    "-",
+    "*斜体* 和 #标签",
+  ];
+  for (const target of ["甲", "子A"]) {
+    for (const note of notes) {
+      const d = parseDoc("---\ncloudmind: true\n---\n# 根\n## 甲\n- 子A\n- 子B\n## 乙\n", "T");
+      let f: any;
+      const w = (n: any) => { if (n.data.text === target) f = n; (n.children || []).forEach(w); };
+      w(d.root);
+      f.data.note = note;
+      const md = serializeDoc({ root: d.root, virtualRoot: d.virtualRoot, useTab: d.useTab, eol: d.eol, fmInner: d.fmInner, fmUpdates: {} });
+      const d2 = parseDoc(md, "T");
+      let g: any;
+      const w2 = (n: any) => { if (n.data.text === target) g = n; (n.children || []).forEach(w2); };
+      w2(d2.root);
+      const shape = (n: any): string => n.data.text + (n.children?.length ? "(" + n.children.map(shape).join(",") + ")" : "");
+      check(`note on ${target} survives: ${JSON.stringify(note).slice(0, 30)}`, shape(d2.root) === "根(甲(子A,子B),乙)" && g?.data.note === note, md);
+    }
+  }
+  const d = parseDoc("# 根\n## 甲\n", "T");
+  d.root.children[0].data.note = "```\n- x\n```\n- y";
+  const md = serializeDoc({ root: d.root, virtualRoot: d.virtualRoot, useTab: d.useTab, eol: d.eol, fmInner: d.fmInner, fmUpdates: {} });
+  check("list lines inside a code block are not escaped; outside they are", md.includes("```\n- x\n```\n\\- y"), md);
+}
 console.log(failed === 0 ? "\nALL PASSED" : `\n${failed} FAILED`);
 process.exit(failed ? 1 : 0);

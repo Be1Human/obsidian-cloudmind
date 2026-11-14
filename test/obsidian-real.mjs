@@ -224,6 +224,96 @@ const crop = async (name, { pad = 36, extra = [], minW = 0, minH = 0 } = {}) => 
   console.log("cropped", name, JSON.stringify(r));
 };
 
+// 备注：添加 / 修改 / 显示 / 拖动后跟随 / 切文本再切回 / 清空
+if (MODE === "note") {
+  const view = () => "window.app.workspace.activeLeaf.view";
+  await win.evaluate(async () => {
+    const f = window.app.vault.getAbstractFileByPath("读书/原子习惯.md");
+    await window.app.workspace.getLeaf(false).openFile(f);
+  });
+  await sleep(800);
+  await win.click(".workspace-leaf.mod-active .view-action.cm-header-btn");
+  await sleep(1800);
+  const find = (t) => win.evaluate((t) => {
+    const v = window.app.workspace.activeLeaf.view;
+    let f; const w = (x) => { if (x.getData("text") === t) f = x; x.children.forEach(w); }; w(v.mm.renderer.root);
+    return f ? { note: f.getData("note") ?? null, parent: f.parent?.getData("text") } : null;
+  }, t);
+  const select = (t) => win.evaluate((t) => {
+    const v = window.app.workspace.activeLeaf.view;
+    let f; const w = (x) => { if (x.getData("text") === t) f = x; x.children.forEach(w); }; w(v.mm.renderer.root);
+    v.mm.execCommand("CLEAR_ACTIVE_NODE"); f.active();
+  }, t);
+  const md = () => win.evaluate(() => window.app.workspace.activeLeaf.view.getViewData());
+  const fileText = () => win.evaluate(async () => window.app.vault.read(window.app.vault.getAbstractFileByPath("读书/原子习惯.md")));
+  const openNoteDialog = async (t) => {
+    await select(t);
+    await sleep(300);
+    await win.click('.workspace-leaf.mod-active .cm-toolbar [data-id="note"]');
+    await sleep(500);
+  };
+  // 1. 添加多行、带列表的备注
+  await openNoteDialog("每天进步 1%");
+  const ta = win.locator(".modal textarea").first();
+  console.log("dialog shown:", await ta.count() > 0);
+  await ta.fill("一年就是 37 倍\n- 复利效应\n- 坚持比强度重要");
+  await win.locator(".modal button", { hasText: "确定" }).click();
+  await sleep(1500);
+  console.log("1 after add:", JSON.stringify(await find("每天进步 1%")));
+  // 节点上是否显示备注图标
+  const iconShown = await win.evaluate(() => {
+    const v = window.app.workspace.activeLeaf.view;
+    let f; const w = (x) => { if (x.getData("text") === "每天进步 1%") f = x; x.children.forEach(w); }; w(v.mm.renderer.root);
+    return !!f._noteData || f.group.node.querySelectorAll(".smm-node-note, [class*=note]").length;
+  });
+  console.log("1 note icon on node:", iconShown);
+  await win.screenshot({ path: path.join(out, "_note-1.png") });
+  // 2. 再打开：内容是否回填，修改
+  await openNoteDialog("每天进步 1%");
+  console.log("2 prefilled:", JSON.stringify(await win.locator(".modal textarea").first().inputValue()));
+  await win.locator(".modal textarea").first().fill("一年就是 37 倍\n- 复利效应\n- 坚持比强度重要\n# 小结：系统 > 目标");
+  await win.locator(".modal button", { hasText: "确定" }).click();
+  await sleep(1500);
+  console.log("2 after edit:", JSON.stringify(await find("每天进步 1%")));
+  // 3. 拖动这个节点到另一个分支下，备注跟着走
+  const rectOf = (t) => win.evaluate((t) => {
+    const v = window.app.workspace.activeLeaf.view;
+    let f; const w = (x) => { if (x.getData("text") === t) f = x; x.children.forEach(w); }; w(v.mm.renderer.root);
+    const r = f.getRectInSvg(); const c = v.mm.el.getBoundingClientRect();
+    return { left: c.left + r.left, top: c.top + r.top, width: r.width, height: r.height };
+  }, t);
+  await win.evaluate(() => window.app.workspace.activeLeaf.view.mm.execCommand("CLEAR_ACTIVE_NODE"));
+  const a = await rectOf("每天进步 1%"), b = await rectOf("睡前复盘");
+  await win.mouse.move(a.left + a.width / 2, a.top + a.height / 2);
+  await win.mouse.down();
+  await win.mouse.move(b.left + b.width / 2, b.top + b.height * 0.85, { steps: 12 });
+  await win.mouse.up();
+  await sleep(1500);
+  console.log("3 after drag:", JSON.stringify(await find("每天进步 1%")));
+  // 4. 文件内容
+  await sleep(1500);
+  const ft = await fileText();
+  console.log("4 file:\n" + ft);
+  // 5. 切到文本再切回
+  await win.evaluate(() => window.app.commands.executeCommandById("cloudmind:open-as-text"));
+  await sleep(1200);
+  await win.click(".workspace-leaf.mod-active .view-action.cm-header-btn");
+  await sleep(1800);
+  console.log("5 after text→map:", JSON.stringify(await find("每天进步 1%")), "| 节点数:", await win.evaluate(() => { let n = 0; const w = (x) => { n++; x.children.forEach(w); }; w(window.app.workspace.activeLeaf.view.mm.renderer.root); return n; }));
+  // 6. 清空备注
+  await openNoteDialog("每天进步 1%");
+  await win.locator(".modal textarea").first().fill("");
+  await win.locator(".modal button", { hasText: "确定" }).click();
+  await sleep(600);
+  console.log("6 save state right after:", await win.evaluate(() => document.querySelector(".workspace-leaf.mod-active .cm-seg-save")?.textContent));
+  await sleep(3400);
+  console.log("6 save state after 4s:", await win.evaluate(() => document.querySelector(".workspace-leaf.mod-active .cm-seg-save")?.textContent));
+  console.log("6 after clear:", JSON.stringify(await find("每天进步 1%")));
+  const ft2 = await fileText();
+  console.log("6 file section:\n" + ft2.split("## 我的行动")[1]);
+  await app.close();
+  process.exit(0);
+}
 // 拖拽换位置（真实鼠标）
 if (MODE === "drag") {
   await win.evaluate(async () => {

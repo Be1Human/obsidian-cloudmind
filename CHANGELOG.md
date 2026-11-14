@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.6
+
+- Fixed: a topic note containing lines that start with `-`, `1.` or `#` turned into new topics after reopening the note, and the note text was lost. Such lines are now saved with a Markdown escape (`\-`, `1\.`, `\#`), which looks the same in reading view; code blocks inside notes are left untouched.
+
 ## 0.4.5
 
 - Improved: dragging a topic to reorder is much easier to aim. The top / bottom 30% of a topic now means insert above / below (the middle makes it a child), the drop zone extends half-way to the neighbouring topics and about 56px to the left and right, and the drop position is re-evaluated on release instead of every 300ms. In tests, 24 of 24 drops land where intended (4 of 24 before). Applies to the mind map and logic chart layouts; other layouts keep the previous rules but react faster.

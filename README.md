@@ -116,7 +116,7 @@ cloudmind-theme: cloudBox
 | What | Where |
 |---|---|
 | Structure | Heading and list nesting |
-| Topic notes | Plain text lines under a topic |
+| Topic notes | Plain text lines under a topic (note lines starting with `-`, `1.` or `#` are saved as `\-`, `1\.`, `\#` so they don't become topics; they look the same in reading view) |
 | Colours, folding, icons, links… | A hidden `<!--mm:{…}-->` comment at the end of the line |
 | Layout and theme | Front matter: `cloudmind-layout`, `cloudmind-theme` |
 

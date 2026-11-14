@@ -40,6 +40,21 @@ const LIST_RE = /^([ \t]*)([-*+]|\d{1,9}[.)])(?:[ \t]+(.*))?$/;
 const FENCE_RE = /^[ \t]*(```+|~~~+)/;
 const META_RE = /[ \t]*<!--mm:(\{[\s\S]*?\})-->[ \t]*$/;
 
+/**
+ * 备注是“节点下面的普通文字行”。如果某一行本身像标题（# ）或列表（- 、1. ），
+ * 再读回时会被当成新节点。保存时给开头的符号加 Markdown 转义（\- 、1\. 、\# ），
+ * 阅读模式里显示不变；读回时去掉。
+ */
+export function escapeNoteLine(ln: string): string {
+  if (HEADING_RE.test(ln)) return ln.replace(/^([ \t]*)#/, "$1\\#");
+  if (LIST_RE.test(ln)) return ln.replace(/^([ \t]*)(?:([-*+])|(\d{1,9})([.)]))/, (_m, sp, b, num, d) => (b ? `${sp}\\${b}` : `${sp}${num}\\${d}`));
+  return ln;
+}
+export function unescapeNoteLine(ln: string): string {
+  const un = ln.replace(/^([ \t]*)\\([-*+#])/, "$1$2").replace(/^([ \t]*)(\d{1,9})\\([.)])/, "$1$2$3");
+  return un !== ln && (HEADING_RE.test(un) || LIST_RE.test(un)) ? un : ln;
+}
+
 /** 序列化时不写进元数据的字段 */
 const SKIP_KEYS = new Set([
   "text",
@@ -140,12 +155,12 @@ export function parseDoc(text: string, fallbackTitle: string): ParsedDoc {
   let fenceMark = "";
   let pendingBlank = 0;
 
-  const pushNote = (frame: Frame, line: string) => {
+  const pushNote = (frame: Frame, line: string, raw = false) => {
     const arr = notes.get(frame.node) ?? [];
     if (arr.length > 0) for (let i = 0; i < pendingBlank; i++) arr.push("");
     pendingBlank = 0;
     const stripped = frame.noteStrip > 0 ? line.replace(new RegExp("^[ \\t]{0," + frame.noteStrip + "}"), "") : line;
-    arr.push(stripped);
+    arr.push(raw ? stripped : unescapeNoteLine(stripped));
     notes.set(frame.node, arr);
   };
 
@@ -165,11 +180,11 @@ export function parseDoc(text: string, fallbackTitle: string): ParsedDoc {
       } else {
         inFence = false;
       }
-      pushNote(cur, line);
+      pushNote(cur, line, true);
       continue;
     }
     if (inFence) {
-      pushNote(cur, line);
+      pushNote(cur, line, true);
       continue;
     }
 
@@ -310,7 +325,20 @@ export function serializeDoc(o: SerializeOpts): string {
   const emitNote = (node: MmNode, prefix: string) => {
     const note = node.data.note;
     if (typeof note !== "string" || note === "") return;
-    for (const ln of note.split(/\r?\n/)) out.push(ln === "" ? "" : prefix + ln);
+    let fence = "";
+    for (const ln of note.split(/\r?\n/)) {
+      if (ln === "") {
+        out.push("");
+        continue;
+      }
+      const f = FENCE_RE.exec(ln);
+      if (f && (!fence || ln.trim().startsWith(fence))) {
+        fence = fence ? "" : f[1][0].repeat(3);
+        out.push(prefix + ln);
+        continue;
+      }
+      out.push(prefix + (fence ? ln : escapeNoteLine(ln)));
+    }
   };
 
   const emit = (node: MmNode, parent: MmNode | null, ctx: Ctx, isRoot: boolean) => {
