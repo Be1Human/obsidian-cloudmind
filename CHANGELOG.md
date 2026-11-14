@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.7
+
+- Topics no longer show the `[[ ]]` brackets of wikilinks: `[[Note]]` is shown as an underlined "Note", `[[Note|alias]]` as "alias", and `[[Note#Heading]]` as "Note > Heading", like Obsidian's reading view. Editing a topic still shows the raw link, and the file keeps the standard `[[Note]]`.
+
 ## 0.4.6
 
 - Fixed: a topic note containing lines that start with `-`, `1.` or `#` turned into new topics after reopening the note, and the note text was lost. Such lines are now saved with a Markdown escape (`\-`, `1\.`, `\#`), which looks the same in reading view; code blocks inside notes are left untouched.
