@@ -388,6 +388,65 @@ cloudmind: true
   await page.keyboard.press("Control+z"); await page.waitForTimeout(500);
   ok("Ctrl+Z brings the deleted node back", (await names()).includes("乙"), await names());
 }
+// ---------- 17. 图标面板：显示真实图标，点击加上 / 再点去掉 / 同类替换 / 清除 ----------
+{
+  await page.evaluate((t) => window.__view.setViewData(t, true), "---\ncloudmind: true\n---\n# 根\n## 甲\n## 乙\n");
+  await page.waitForTimeout(700);
+  const sel = (nm) => page.evaluate((nm) => { let f; const w = (x) => { if (x.getData("text") === nm) f = x; x.children.forEach(w); }; w(window.mm().renderer.root); window.mm().execCommand("CLEAR_ACTIVE_NODE"); f.active(); }, nm);
+  const iconsOf = (nm) => page.evaluate((nm) => { let f; const w = (x) => { if (x.getData("text") === nm) f = x; x.children.forEach(w); }; w(window.mm().renderer.root); return f.getData("icon") ?? []; }, nm);
+  await sel("甲");
+  await page.waitForTimeout(200);
+  await page.click('.cm-toolbar [data-id="icon"]');
+  await page.waitForTimeout(300);
+  const info = await page.evaluate(() => {
+    const pop = document.querySelector(".cm-pop-icon");
+    if (!pop) return null;
+    const btns = [...pop.querySelectorAll(".cm-icon-btn")];
+    const r = pop.getBoundingClientRect();
+    return {
+      groups: pop.querySelectorAll(".cm-pop-title").length,
+      buttons: btns.length,
+      withSvg: btns.filter((b) => b.querySelector("svg")).length,
+      visibleSvg: btns.filter((b) => { const s = b.querySelector("svg"); if (!s) return false; const q = s.getBoundingClientRect(); return q.width >= 16 && q.height >= 16; }).length,
+      textOnly: btns.filter((b) => !b.querySelector("svg") && /^\d+$/.test(b.textContent.trim())).length,
+      inViewport: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1,
+    };
+  });
+  console.log("  icon popover:", JSON.stringify(info));
+  ok("icon popover opens with every icon drawn as an SVG (no bare numbers)", info && info.buttons > 20 && info.withSvg === info.buttons && info.visibleSvg === info.buttons && info.textOnly === 0, JSON.stringify(info));
+  ok("icon popover fits in the window", info && info.inViewport, JSON.stringify(info));
+  await page.click('.cm-pop-icon [data-icon="priority_1"]');
+  await page.waitForTimeout(250);
+  ok("clicking an icon adds it to the node", JSON.stringify(await iconsOf("甲")) === '["priority_1"]', JSON.stringify(await iconsOf("甲")));
+  ok("the chosen icon is highlighted in the panel", await page.evaluate(() => !!document.querySelector('.cm-pop-icon [data-icon="priority_1"].is-current')));
+  await page.click('.cm-pop-icon [data-icon="priority_3"]');
+  await page.waitForTimeout(250);
+  ok("an icon of the same group replaces the previous one", JSON.stringify(await iconsOf("甲")) === '["priority_3"]', JSON.stringify(await iconsOf("甲")));
+  await page.click('.cm-pop-icon [data-icon="expression_2"]');
+  await page.waitForTimeout(250);
+  ok("icons from different groups can be combined", JSON.stringify(await iconsOf("甲")) === '["priority_3","expression_2"]', JSON.stringify(await iconsOf("甲")));
+  await page.click('.cm-pop-icon [data-icon="expression_2"]');
+  await page.waitForTimeout(250);
+  ok("clicking a chosen icon again removes it", JSON.stringify(await iconsOf("甲")) === '["priority_3"]', JSON.stringify(await iconsOf("甲")));
+  const nodeHasIcon = await page.evaluate(() => { let f; const w = (x) => { if (x.getData("text") === "甲") f = x; x.children.forEach(w); }; w(window.mm().renderer.root); return f.group.node.querySelectorAll("svg, image, use").length > 0; });
+  ok("the icon is drawn on the node", nodeHasIcon);
+  const md = await page.evaluate(() => window.getText());
+  ok("the icon is saved in the note", /## 甲 <!--mm:\{[^}]*"icon":\["priority_3"\]/.test(md), md);
+  await page.click(".cm-pop-icon .cm-pop-reset");
+  await page.waitForTimeout(250);
+  ok("清除图标 removes all icons", JSON.stringify(await iconsOf("甲")) === "[]", JSON.stringify(await iconsOf("甲")));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+  ok("Esc closes the icon panel", await page.evaluate(() => !document.querySelector(".cm-pop-icon")));
+  // 右键菜单入口
+  await sel("乙");
+  await page.evaluate(() => window.__view.showNodeMenu({ clientX: 50, clientY: 50 }));
+  await page.evaluate(() => window.__menu.items.find((i) => /^图标/.test(i.title)).fn());
+  await page.waitForTimeout(300);
+  ok("context menu 图标… opens the same visual panel", await page.evaluate(() => document.querySelectorAll(".cm-pop-icon .cm-icon-btn svg").length > 20));
+  await page.keyboard.press("Escape");
+  await page.screenshot({ path: path.join(dir, "ui-icons.png") });
+}
 console.log("page errors:", errors.length ? errors : "none");
 ok("no page errors", errors.length === 0);
 await browser.close();

@@ -884,7 +884,7 @@ export class CloudMindView extends TextFileView {
       run: (ev) => this.openNodeLinks(this.sel()[0], ev, false),
     });
     S({ id: "tag", icon: "tag", label: "标签", tip: "添加标签", need: true, run: () => void this.editTags() });
-    S({ id: "icon", icon: "smile-plus", label: "图标", tip: "添加图标", need: true, run: (ev) => this.showIconMenu(ev) });
+    S({ id: "icon", icon: "smile-plus", label: "图标", tip: "添加图标", need: true, run: (_e, el) => this.openIconPopover(el) });
 
     S({
       id: "fill",
@@ -1406,10 +1406,7 @@ export class CloudMindView extends TextFileView {
     }
     menu.addItem((i) => i.setTitle("超链接…").setIcon("link").onClick(() => this.editLink()));
     menu.addItem((i) => i.setTitle("标签…").setIcon("tag").onClick(() => this.editTags()));
-    menu.addItem((i) => {
-      i.setTitle("图标").setIcon("smile-plus");
-      this.sub(i, (m) => this.iconItems(m), menu);
-    });
+    menu.addItem((i) => i.setTitle("图标…").setIcon("smile-plus").onClick(() => this.openIconPopover(this.nodeAnchor())));
     menu.addSeparator();
     menu.addItem((i) => {
       i.setTitle("填充颜色").setIcon("paint-bucket");
@@ -1584,41 +1581,77 @@ export class CloudMindView extends TextFileView {
     menu.showAtMouseEvent(ev);
   }
 
-  private iconItems(m: Menu) {
-    const groups: any[] = icons.nodeIconList ?? [];
-    groups.forEach((g) => {
-      m.addItem((i) => {
-        i.setTitle(g.name);
-        this.sub(
-          i,
-          (sm) => {
-            g.list.forEach((ic: any) =>
-              sm.addItem((x) =>
-                x.setTitle(ic.name).onClick(() => {
-                  const key = `${g.type}_${ic.name}`;
-                  this.sel().forEach((n) => {
-                    const cur: string[] = n.getData("icon") ?? [];
-                    const next = cur.filter((c) => c.split("_")[0] !== g.type);
-                    next.push(key);
-                    this.mm.execCommand("SET_NODE_ICON", n, next);
-                  });
-                })
-              )
-            );
-          },
-          m
-        );
-      });
-    });
-    m.addSeparator();
-    m.addItem((i) => i.setTitle("清除图标").onClick(() => this.sel().forEach((n) => this.mm.execCommand("SET_NODE_ICON", n, []))));
+  /** 把库里的 SVG 字符串转成元素（不用 innerHTML） */
+  private svgEl(svg: string): Element | null {
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const root = doc.documentElement;
+    if (!root || root.nodeName.toLowerCase() !== "svg") return null;
+    // 库里的图标只有 viewBox、没有尺寸，不写的话在部分布局里会被压成 0×0
+    root.setAttribute("width", "22");
+    root.setAttribute("height", "22");
+    return this.contentEl.ownerDocument.importNode(root, true);
   }
 
-  private showIconMenu(ev: MouseEvent) {
+  /** 右键菜单打开弹层时用来定位的锚点：选中节点在屏幕上的位置 */
+  private nodeAnchor(): HTMLElement {
+    const doc = this.contentEl.ownerDocument;
+    const a = doc.body.createDiv({ cls: "cm-anchor" });
+    const n = this.sel()[0];
+    const c = this.canvasEl.getBoundingClientRect();
+    let r = { left: 40, top: 40, width: 1, height: 1 };
+    try {
+      r = n.getRectInSvg();
+    } catch {
+      /* 节点还没渲染好：放在画布左上角附近 */
+    }
+    a.setCssStyles({ left: c.left + r.left + "px", top: c.top + r.top + "px", width: r.width + "px", height: r.height + "px" });
+    window.setTimeout(() => a.remove(), 0);
+    return a;
+  }
+
+  /** 图标面板：直接显示每个图标，点一下加上，再点一下去掉；同一类只保留一个 */
+  private openIconPopover(anchor: HTMLElement) {
     if (!this.hasSel()) return void new Notice("请先选中一个节点");
-    const menu = new Menu();
-    this.iconItems(menu);
-    menu.showAtMouseEvent(ev);
+    const groups: { name: string; type: string; list: { name: string; icon: string }[] }[] = icons.nodeIconList ?? [];
+    this.openPopover(anchor, "cm-pop-icon", (el) => {
+      const current = () => new Set<string>(this.sel().flatMap((n) => (n.getData("icon") as string[] | undefined) ?? []));
+      const render = () => {
+        el.empty();
+        const cur = current();
+        for (const g of groups) {
+          el.createDiv({ cls: "cm-pop-title", text: g.name });
+          const grid = el.createDiv({ cls: "cm-icon-grid" });
+          for (const ic of g.list) {
+            const key = `${g.type}_${ic.name}`;
+            const b = grid.createEl("button", {
+              cls: "cm-icon-btn" + (cur.has(key) ? " is-current" : ""),
+              attr: { "aria-label": `${g.name} ${ic.name}`, "data-icon": key },
+            });
+            const svg = this.svgEl(ic.icon);
+            if (svg) b.appendChild(svg);
+            else b.setText(ic.name);
+            b.addEventListener("click", () => {
+              const on = cur.has(key);
+              this.sel().forEach((n) => {
+                const list: string[] = (n.getData("icon") as string[] | undefined) ?? [];
+                const next = list.filter((k) => k.split("_")[0] !== g.type);
+                if (!on) next.push(key);
+                this.mm.execCommand("SET_NODE_ICON", n, next);
+              });
+              render();
+            });
+          }
+        }
+        const row = el.createDiv({ cls: "cm-pop-row" });
+        const clear = row.createEl("button", { cls: "cm-pop-reset", text: "清除图标" });
+        clear.addEventListener("click", () => {
+          this.sel().forEach((n) => this.mm.execCommand("SET_NODE_ICON", n, []));
+          render();
+        });
+        row.createSpan({ cls: "cm-pop-hint", text: "再点一次可取消，同类图标只保留一个" });
+      };
+      render();
+    });
   }
 
   private showExportMenu(ev: MouseEvent) {

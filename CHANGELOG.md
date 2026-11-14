@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.4
+
+- Fixed: the icon picker only listed numbers (1, 2, 3…) instead of the icons. It is now a visual panel showing all icons by group (priority, progress, emoji, markers); click to add, click again to remove, one icon per group, plus 
 ## 0.4.3
 
 - Passes the Obsidian community automated review rules (eslint-plugin-obsidianmd): no plugin name in settings headings, popout-window safe document/window/timer usage, `setCssStyles` instead of inline style assignments, no deprecated `execCommand` / `keyCode`.

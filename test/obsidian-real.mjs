@@ -224,6 +224,38 @@ const crop = async (name, { pad = 36, extra = [], minW = 0, minH = 0 } = {}) => 
   console.log("cropped", name, JSON.stringify(r));
 };
 
+// 图标面板
+if (MODE === "icons") {
+  await win.evaluate(async () => {
+    const f = window.app.vault.getAbstractFileByPath("读书/原子习惯.md");
+    await window.app.workspace.getLeaf(false).openFile(f);
+  });
+  await sleep(800);
+  await win.click(".workspace-leaf.mod-active .view-action.cm-header-btn");
+  await sleep(1800);
+  await win.evaluate(() => {
+    const v = window.app.workspace.activeLeaf.view;
+    const n = v.mm.renderer.root.children[0];
+    v.mm.execCommand("CLEAR_ACTIVE_NODE");
+    n.active();
+  });
+  await sleep(400);
+  await win.click('.workspace-leaf.mod-active .cm-toolbar [data-id="icon"]');
+  await sleep(500);
+  await win.click('.cm-pop-icon [data-icon="priority_1"]');
+  await win.click('.cm-pop-icon [data-icon="expression_1"]');
+  await sleep(500);
+  const st = await win.evaluate(() => ({
+    buttons: document.querySelectorAll(".cm-pop-icon .cm-icon-btn").length,
+    visible: [...document.querySelectorAll(".cm-pop-icon .cm-icon-btn svg")].filter((s) => s.getBoundingClientRect().width >= 16).length,
+    nodeIcons: window.app.workspace.activeLeaf.view.mm.renderer.root.children[0].getData("icon"),
+  }));
+  console.log("real obsidian icon panel:", JSON.stringify(st));
+  await win.screenshot({ path: path.join(out, "_icons.png") });
+  console.log("saved _icons");
+  await app.close();
+  process.exit(0);
+}
 // 文件右键菜单的全部条目（核对“在系统资源管理器中显示”之类的文字）
 if (MODE === "filemenu") {
   await win.locator(".nav-file-title").first().click({ button: "right" });

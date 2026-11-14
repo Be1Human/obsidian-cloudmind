@@ -434,6 +434,51 @@
   transform: scale(1.12);
   box-shadow: 0 0 0 2px var(--interactive-accent);
 }
+
+/* ---------- 图标面板 ---------- */
+.cm-pop-icon {
+  max-width: 340px;
+  max-height: min(520px, 80vh);
+  overflow-y: auto;
+}
+.cm-pop-icon .cm-pop-title:not(:first-child) {
+  margin-top: 10px;
+}
+.cm-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 32px);
+  gap: 4px;
+}
+.cm-icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+.cm-icon-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.cm-icon-btn:hover {
+  background: var(--background-modifier-hover);
+}
+.cm-icon-btn.is-current {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+.cm-anchor {
+  position: fixed;
+  pointer-events: none;
+}
 .cm-pop-row {
   display: flex;
   align-items: center;
