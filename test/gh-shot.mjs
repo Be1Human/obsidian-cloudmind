@@ -21,4 +21,11 @@ const out = path.join(dir, `.gh-${which.replace(/[^\w.-]/g, "_")}.png`);
 await el.screenshot({ path: out });
 const h = await el.evaluate((e) => e.getBoundingClientRect().height);
 console.log("saved", out, "height", Math.round(h));
+// 分段截图，便于逐屏检查
+const box = await el.boundingBox();
+const CH = 1300;
+for (let i = 0, y = 0; y < box.height; i++, y += CH) {
+  await p.screenshot({ path: out.replace(/\.png$/, `-${i + 1}.png`), clip: { x: box.x, y: box.y + y, width: box.width, height: Math.min(CH, box.height - y) }, fullPage: true });
+}
+console.log("parts:", Math.ceil(box.height / CH));
 await b.close();

@@ -211,7 +211,16 @@ const crop = async (name, { pad = 36, extra = [], minW = 0, minH = 0 } = {}) => 
     },
     [extra, pad, minW, minH]
   );
+  // 裁剪时临时隐藏笔记正文，让菜单 / 按钮落在干净的背景上
+  await win.evaluate(() => {
+    const s = document.createElement("style");
+    s.id = "cmshot-clean";
+    s.textContent = ".workspace-split.mod-root .view-content{visibility:hidden !important}";
+    document.head.appendChild(s);
+  });
+  await sleep(150);
   await win.screenshot({ path: path.join(xhs, name + ".png"), clip: r });
+  await win.evaluate(() => document.getElementById("cmshot-clean")?.remove());
   console.log("cropped", name, JSON.stringify(r));
 };
 
