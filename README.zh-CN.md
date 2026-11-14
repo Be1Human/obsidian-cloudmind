@@ -23,28 +23,91 @@
 
 ## 安装
 
-### 从插件市场安装（上架后）
+### 先搞清楚：插件装在哪里
 
-设置 → 第三方插件 → 浏览，搜 **CloudMind**，安装并启用。
+Obsidian 的插件**装在“库”里**，不是装在某一篇笔记里，也没有“装进 Obsidian 软件、所有库通用”的选项。这是 Obsidian 本身的设计，所有第三方插件都一样。
 
-### 手动安装（现在可用）
+- **库（vault）**就是你在 Obsidian 里打开的那个文件夹，左下角显示的就是库名。
+- 每个库都有一个隐藏文件夹 `.obsidian`，插件放在里面的 `.obsidian/plugins/插件名/`。
+- 所以**有几个库要用，就要在几个库里各装一次**（多个库的省事办法见[下面](#多个库都想用)）。
 
-1. 打开 [Releases](https://github.com/Be1Human/obsidian-cloudmind/releases/latest)，下载最新版的 3 个文件：`main.js`、`manifest.json`、`styles.css`（不用下载 Source code）。
-2. 在库里新建文件夹 `.obsidian/plugins/cloudmind/`，把 3 个文件放进去：
+```
+你的库/                          ← 你在 Obsidian 里打开的文件夹
+├─ 读书/  日记/  …                ← 你的笔记
+└─ .obsidian/                     ← 隐藏文件夹，Obsidian 的设置
+     └─ plugins/
+          └─ cloudmind/           ← 新建这个文件夹，名字必须是 cloudmind
+               ├─ main.js
+               ├─ manifest.json
+               └─ styles.css
+```
 
-   ```
-   你的库/
-   └─ .obsidian/plugins/cloudmind/
-        ├─ main.js
-        ├─ manifest.json
-        └─ styles.css
-   ```
+### 方式一：插件市场（上架后）
 
-3. 设置 → 第三方插件，点“已安装插件”旁的刷新按钮，打开 **CloudMind**。首次启用会提示“CloudMind 已启用”。
+设置 → 第三方插件 → 社区插件市场「浏览」，搜 **CloudMind** → 安装 → 启用。会自动装进当前库。
 
-> - Mac 上 `.obsidian` 是隐藏文件夹，在 Finder 里按 `⌘ ⇧ .` 显示。
-> - 文件夹名必须是 `cloudmind`（和 manifest 里的 id 一致）。
-> - 更新：用新版本的 3 个文件覆盖，再重启 Obsidian 或重新打开插件。
+### 方式二：手动安装（现在用这个）
+
+**第 1 步：下载 3 个文件**
+
+打开 [最新 Release](https://github.com/Be1Human/obsidian-cloudmind/releases/latest)，在页面下方 Assets 里下载 `main.js`、`manifest.json`、`styles.css`。不用下载 Source code。
+
+**第 2 步：打开插件文件夹，放进去**
+
+在 Obsidian 里打开 **设置 → 第三方插件**：
+
+![设置 → 第三方插件](docs/images/obsidian/07-plugins-folder.png)
+
+1. 点「已安装插件」右边的**文件夹图标「打开插件文件夹」**，系统会直接打开当前库的 `.obsidian/plugins` 文件夹。
+2. 在里面**新建文件夹 `cloudmind`**，把下载的 3 个文件放进去。
+3. 回到 Obsidian，点文件夹图标旁边的**「重新加载插件」**，列表里出现 CloudMind，**打开它右边的开关**。
+
+启用后会提示「CloudMind 已启用」，笔记右上角也会多出一个导图图标，说明装好了。
+
+> **找不到插件文件夹？**
+> - 第一次装第三方插件时，如果「安全模式」是开着的，先把它关掉（设置页最上面那一项），才会出现「已安装插件」。
+> - 也可以在左侧文件列表里**右键任意一篇笔记 → 在系统资源管理器中显示**，找到库所在的文件夹，再进 `.obsidian/plugins/`。
+> - `.obsidian` 是隐藏文件夹：Windows 资源管理器里勾选「查看 → 隐藏的项目」；Mac 的访达里按 `⌘ ⇧ .`。
+
+### 多个库都想用
+
+挑一种：
+
+**A. 每个库各装一次（最简单）**
+在每个库里重复上面的第 2 步。也可以把装好的整个 `cloudmind` 文件夹复制到另一个库的 `.obsidian/plugins/` 里，再到那个库里打开开关。
+
+**B. 多个库共用一份（更新一次，所有库都生效）**
+在其它库里建一个“目录链接”，指向已经装好的那份。以下 Windows 命令我用真实 Obsidian 验证过，第二个库能正常加载 CloudMind。
+
+Windows（在“命令提示符”里运行，把路径换成你自己的）：
+
+```bat
+mkdir "D:\第二个库\.obsidian\plugins"
+mklink /J "D:\第二个库\.obsidian\plugins\cloudmind" "D:\我的库\.obsidian\plugins\cloudmind"
+```
+
+Mac / Linux（终端）：
+
+```bash
+mkdir -p ~/第二个库/.obsidian/plugins
+ln -s ~/我的库/.obsidian/plugins/cloudmind ~/第二个库/.obsidian/plugins/cloudmind
+```
+
+然后到第二个库里：设置 → 第三方插件 → 重新加载插件 → 打开 CloudMind 开关。
+
+注意：
+- 共用后，CloudMind 的**插件设置**（工具栏位置等）也是共用的；每张导图的主题、结构仍然各自存在笔记里。
+- 如果库放在 iCloud、坚果云等同步盘里，或用 Obsidian Sync 同步到其它设备，同步工具可能不认这种链接，这时请用方式 A。
+
+### 更新
+
+- 手动安装的：下载新版的 3 个文件，覆盖 `cloudmind` 文件夹里的旧文件，再到设置里点「重新加载插件」或重启 Obsidian。更新后会提示「CloudMind 已更新到 x.x.x」。
+- 用方式 B 共用的：只更新原来那一份。
+- 插件市场安装的：设置 → 第三方插件 →「检查更新」。
+
+### 卸载
+
+设置 → 第三方插件 → 关掉 CloudMind 的开关，或在它的「更多选项」里卸载；也可以直接删掉 `.obsidian/plugins/cloudmind` 文件夹。**你的笔记不受影响**：导图本来就是普通的 Markdown，卸载后照样能打开、能读。
 
 ## 创建导图
 
@@ -208,7 +271,10 @@ Mac 上把 `Ctrl` 换成 `⌘`。
 ## 常见问题
 
 **装好后看不到 CloudMind？**
-确认文件夹名是 `cloudmind`、里面有 3 个文件，并且在第三方插件里点了刷新、打开了开关。如果开着“安全模式”，需要先关闭。
+逐项确认：① 文件夹名是 `cloudmind`，3 个文件直接在它里面（不要多套一层文件夹）；② 放在**当前打开的这个库**的 `.obsidian/plugins/` 里；③ 在第三方插件里点了「重新加载插件」并打开了开关；④「安全模式」已关闭。
+
+**能不能装一次，所有库都能用？**
+不能，Obsidian 的插件都是按库安装的。多个库的省事办法见 [多个库都想用](#多个库都想用)。
 
 **为什么我的笔记没有自动以导图打开？**
 只有 frontmatter 里带 `cloudmind: true` 的笔记才会自动打开为导图；其它笔记点右上角的导图按钮预览。也可能是在设置里关了“自动用导图打开”。

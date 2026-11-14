@@ -215,6 +215,167 @@ const crop = async (name, { pad = 36, extra = [], minW = 0, minH = 0 } = {}) => 
   console.log("cropped", name, JSON.stringify(r));
 };
 
+// 文件右键菜单的全部条目（核对“在系统资源管理器中显示”之类的文字）
+if (MODE === "filemenu") {
+  await win.locator(".nav-file-title").first().click({ button: "right" });
+  await sleep(600);
+  console.log("file menu:", JSON.stringify(await win.evaluate(() => [...document.querySelectorAll(".menu .menu-item")].map((e) => e.textContent.trim()))));
+  await app.close();
+  process.exit(0);
+}
+// 安装相关：设置 → 第三方插件（“打开插件文件夹”按钮、CloudMind 开关）
+if (MODE === "settings") {
+  const gear = await win.evaluate(() => {
+    const c = [...document.querySelectorAll(".clickable-icon")].filter((e) => /设置|Settings/.test(e.getAttribute("aria-label") || ""));
+    return c.map((e) => e.getAttribute("aria-label") + " @ " + e.closest("[class]")?.className);
+  });
+  console.log("gear candidates:", JSON.stringify(gear));
+  const dbg = await win.evaluate(async () => {
+    const s = window.app.setting;
+    s.open();
+    await new Promise((r) => setTimeout(r, 1200));
+    const el = s.containerEl || s.modalEl;
+    return {
+      keys: Object.keys(s).slice(0, 30),
+      connected: !!el?.isConnected,
+      cls: el?.className,
+      inWindow: el?.ownerDocument === document,
+      navItems: el ? el.querySelectorAll("[class*=nav-item]").length : -1,
+      sample: el ? [...el.querySelectorAll("[class*=nav-item]")].slice(0, 30).map((e) => e.className + ":" + e.textContent.trim()).join(" | ") : "",
+    };
+  });
+  console.log("setting dbg:", JSON.stringify(dbg));
+  await sleep(500);
+  // 设置开在单独的窗口里：找到它
+  let sw = null;
+  for (let i = 0; i < 20 && !sw; i++) {
+    for (const p of app.windows()) {
+      if (p === win) continue;
+      try {
+        if (await p.evaluate(() => document.querySelectorAll(".vertical-tab-nav-item").length > 0)) sw = p;
+      } catch {}
+    }
+    if (!sw) await sleep(500);
+  }
+  console.log("settings window found:", !!sw);
+  if (!sw) {
+    await app.close();
+    process.exit(1);
+  }
+  await sw.evaluate(([w, h]) => {
+    try {
+      const bw = window.require("@electron/remote").getCurrentWindow();
+      bw.setContentSize(w, h);
+    } catch {}
+  }, [1000, 720]);
+  await sleep(800);
+  const tabs = await sw.evaluate(() => [...document.querySelectorAll(".vertical-tab-nav-item")].map((e) => e.textContent.trim()));
+  console.log("tabs:", JSON.stringify(tabs));
+  await sw.locator(".vertical-tab-nav-item", { hasText: "第三方插件" }).first().click();
+  await sleep(1200);
+  const info = await sw.evaluate(() =>
+    [...document.querySelectorAll(".setting-item")].map((s) => ({
+      name: s.querySelector(".setting-item-name")?.textContent?.trim(),
+      buttons: [...s.querySelectorAll(".clickable-icon, button")].map((b) => b.getAttribute("aria-label") || b.textContent.trim()),
+    }))
+  );
+  console.log("community-plugins items:", JSON.stringify(info));
+  const folderLabel = await sw.evaluate(() => {
+    const b = [...document.querySelectorAll(".clickable-icon")].find((e) => /文件夹|folder/i.test(e.getAttribute("aria-label") || ""));
+    if (b) b.classList.add("cmshot-folderbtn");
+    return b?.getAttribute("aria-label") ?? null;
+  });
+  console.log("folder button:", folderLabel);
+  const refreshLabel = await sw.evaluate(() => {
+    const b = [...document.querySelectorAll(".clickable-icon")].find((e) => /刷新|重新加载|reload/i.test(e.getAttribute("aria-label") || ""));
+    if (b) b.classList.add("cmshot-refresh");
+    return b?.getAttribute("aria-label") ?? null;
+  });
+  console.log("refresh button:", refreshLabel);
+  await sw.evaluate(() => {
+    const row = [...document.querySelectorAll(".setting-item")].find((s) => /CloudMind/.test(s.querySelector(".setting-item-name")?.textContent || ""));
+    row?.querySelector(".checkbox-container")?.classList.add("cmshot-cmtoggle");
+  });
+  // 标注画在设置窗口里
+  const markIn = (page, items, font) =>
+    page.evaluate(([items, font]) => {
+      for (const it of items) {
+        const el = document.querySelector(it.sel);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        const pad = it.pad ?? 4;
+        const box = document.createElement("div");
+        box.className = "cmshot-mark";
+        Object.assign(box.style, { position: "fixed", left: r.left - pad + "px", top: r.top - pad + "px", width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px", border: "3px solid #ff4d4f", borderRadius: "8px", boxShadow: "0 0 0 4px rgba(255,77,79,.18)", zIndex: 99999, pointerEvents: "none" });
+        document.body.appendChild(box);
+        const tag = document.createElement("div");
+        tag.className = "cmshot-mark";
+        tag.textContent = it.label;
+        const st = { position: "fixed", zIndex: 99999, pointerEvents: "none", background: "#ff4d4f", color: "#fff", font: `700 ${font}px/1.35 'Microsoft YaHei',sans-serif`, padding: "6px 12px", borderRadius: "8px", whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(255,77,79,.35)" };
+        if (it.side === "below") Object.assign(st, { right: innerWidth - (r.right + pad) + "px", top: r.bottom + pad + 10 + "px" });
+        if (it.side === "left") Object.assign(st, { right: innerWidth - (r.left - pad - 12) + "px", top: r.top + r.height / 2 - 16 + "px" });
+        Object.assign(tag.style, st);
+        document.body.appendChild(tag);
+      }
+    }, [items, font]);
+  await markIn(
+    sw,
+    [
+      { sel: ".cmshot-folderbtn", label: "① 打开插件文件夹，放入 3 个文件", side: "below", pad: 4 },
+      { sel: ".cmshot-refresh", label: "② 刷新", side: "left", pad: 4 },
+      { sel: ".cmshot-cmtoggle", label: "③ 打开 CloudMind 开关", side: "left", pad: 4 },
+    ],
+    18
+  );
+  await sleep(300);
+  await sw.screenshot({ path: path.join(out, "07-plugins-folder.png") });
+  console.log("saved 07-plugins-folder");
+  const files = await win.evaluate(async () => (await window.app.vault.adapter.list(".obsidian/plugins/cloudmind")).files);
+  console.log("plugin folder files:", JSON.stringify(files));
+  await app.close();
+  process.exit(0);
+}
+if (false) {
+  console.log("windows:", app.windows().length, "modals:", await win.evaluate(() => document.querySelectorAll(".modal-container").length));
+  const tabs = await win.evaluate(() => [...document.querySelectorAll(".vertical-tab-nav-item")].map((e) => e.textContent.trim()));
+  console.log("tabs:", JSON.stringify(tabs));
+  await win.locator(".vertical-tab-nav-item", { hasText: "第三方插件" }).first().click();
+  await sleep(1200);
+  const info = await win.evaluate(() =>
+    [...document.querySelectorAll(".modal .setting-item")].map((s) => ({
+      name: s.querySelector(".setting-item-name")?.textContent?.trim(),
+      buttons: [...s.querySelectorAll(".clickable-icon, button")].map((b) => b.getAttribute("aria-label") || b.textContent.trim()),
+    }))
+  );
+  console.log("community-plugins items:", JSON.stringify(info));
+  const folderLabel = await win.evaluate(() => {
+    const b = [...document.querySelectorAll(".modal .clickable-icon")].find((e) => /文件夹|folder/i.test(e.getAttribute("aria-label") || ""));
+    if (b) b.classList.add("cmshot-folderbtn");
+    return b?.getAttribute("aria-label") ?? null;
+  });
+  console.log("folder button:", folderLabel);
+  await win.evaluate(() => {
+    const row = [...document.querySelectorAll(".modal .setting-item")].find((s) => /CloudMind/.test(s.querySelector(".setting-item-name")?.textContent || ""));
+    row?.querySelector(".checkbox-container")?.classList.add("cmshot-cmtoggle");
+  });
+  await sleep(400);
+  await mark(
+    [
+      { sel: ".cmshot-folderbtn", label: "① 点这里打开插件文件夹", side: "below", pad: 4 },
+      { sel: ".cmshot-cmtoggle", label: "③ 放好文件后点刷新，打开开关", side: "left", pad: 4 },
+    ],
+    20
+  );
+  await win.screenshot({ path: path.join(out, "07-plugins-folder.png") });
+  console.log("saved 07-plugins-folder");
+  await clearMarks();
+  // 系统文件夹里应该是什么样：用 Obsidian 自己的 API 列出插件文件夹内容
+  const files = await win.evaluate(async () => (await window.app.vault.adapter.list(".obsidian/plugins/cloudmind")).files);
+  console.log("plugin folder files:", JSON.stringify(files));
+  await app.close();
+  process.exit(0);
+}
+
 // ① 左侧栏图标 → 菜单
 await win.click('.side-dock-ribbon-action[aria-label="CloudMind 思维导图"]');
 await sleep(500);
