@@ -224,6 +224,79 @@ const crop = async (name, { pad = 36, extra = [], minW = 0, minH = 0 } = {}) => 
   console.log("cropped", name, JSON.stringify(r));
 };
 
+// 双链跳转：Ctrl+点击 / 快捷条“打开” / 右键菜单 / 普通单击 / 双击
+if (MODE === "links") {
+  const openMap = async () => {
+    await win.evaluate(async () => {
+      const f = window.app.vault.getAbstractFileByPath("读书/链接测试.md");
+      await window.app.workspace.getLeaf(false).openFile(f);
+    });
+    await sleep(1800);
+  };
+  const state = () => win.evaluate(() => ({
+    active: window.app.workspace.getActiveFile()?.path,
+    view: window.app.workspace.activeLeaf?.view?.getViewType?.(),
+    tabs: window.app.workspace.getLeavesOfType("markdown").length + window.app.workspace.getLeavesOfType("cloudmind-view").length,
+    menu: [...document.querySelectorAll(".menu .menu-item")].map((e) => e.textContent.trim()),
+    notice: [...document.querySelectorAll(".notice")].map((e) => e.textContent.trim()).slice(-1)[0] ?? null,
+  }));
+  const rectOf = (t) => win.evaluate((t) => {
+    const v = window.app.workspace.activeLeaf.view;
+    let f; const w = (x) => { if (x.getData("text").includes(t)) f = x; x.children.forEach(w); }; w(v.mm.renderer.root);
+    const r = f.getRectInSvg(); const c = v.mm.el.getBoundingClientRect();
+    return { x: c.left + r.left + r.width / 2, y: c.top + r.top + r.height / 2 };
+  }, t);
+  const reset = async () => {
+    await win.keyboard.press("Escape");
+    await win.evaluate(() => { ["markdown", "cloudmind-view"].forEach((t) => window.app.workspace.getLeavesOfType(t).forEach((l) => l.detach())); document.querySelectorAll(".notice").forEach((n) => n.remove()); });
+    await openMap();
+  };
+  await openMap();
+  console.log("start:", JSON.stringify(await state()));
+  const cases = ["读书清单 2026", "项目周报", "别名", "不存在的笔记", "标题锚点"];
+  for (const key of cases) {
+    // A. Ctrl+点击
+    await reset();
+    let p = await rectOf(key);
+    await win.keyboard.down("Control");
+    await win.mouse.click(p.x, p.y);
+    await win.keyboard.up("Control");
+    await sleep(1200);
+    console.log(`[${key}] Ctrl+点击 →`, JSON.stringify(await state()));
+    // B. 选中后快捷条“打开”
+    await reset();
+    p = await rectOf(key);
+    await win.mouse.click(p.x, p.y);
+    await sleep(500);
+    const bar = await win.evaluate(() => !!document.querySelector('.cm-nodebar [data-id="openlink"]'));
+    if (bar) await win.click('.cm-nodebar [data-id="openlink"]');
+    await sleep(1200);
+    console.log(`[${key}] 快捷条“打开”(存在=${bar}) →`, JSON.stringify(await state()));
+    // C. 右键 → 打开引用的笔记
+    await reset();
+    p = await rectOf(key);
+    await win.mouse.click(p.x, p.y);
+    await win.mouse.click(p.x, p.y, { button: "right" });
+    await sleep(500);
+    const item = win.locator(".menu .menu-item", { hasText: "打开引用的笔记" });
+    const has = await item.count();
+    if (has) await item.first().click();
+    await sleep(1200);
+    console.log(`[${key}] 右键菜单(有该项=${has > 0}) →`, JSON.stringify(await state()));
+  }
+  // D. 普通单击 / 双击（预期：单击=选中，双击=编辑文字，都不跳转）
+  await reset();
+  let p = await rectOf("读书清单 2026");
+  await win.mouse.click(p.x, p.y);
+  await sleep(800);
+  console.log("[普通单击] →", JSON.stringify(await state()));
+  await win.mouse.dblclick(p.x, p.y);
+  await sleep(800);
+  console.log("[双击] →", JSON.stringify(await state()), "编辑框:", await win.evaluate(() => !!document.querySelector(".smm-node-edit-wrap")));
+  await win.screenshot({ path: path.join(out, "_links.png") });
+  await app.close();
+  process.exit(0);
+}
 // 备注：添加 / 修改 / 显示 / 拖动后跟随 / 切文本再切回 / 清空
 if (MODE === "note") {
   const view = () => "window.app.workspace.activeLeaf.view";
