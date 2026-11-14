@@ -1,0 +1,17 @@
+﻿import { chromium } from "playwright-core";
+import { fileURLToPath } from "url";
+import { writeFileSync } from "fs";
+import path from "path";
+import os from "os";
+const dir = path.dirname(fileURLToPath(import.meta.url));
+const exe = process.env.CHROME_PATH || path.join(os.homedir(), "AppData/Local/ms-playwright/chromium-1234/chrome-win64/chrome.exe");
+const b = await chromium.launch({ executablePath: exe, headless: true });
+const p = await b.newPage();
+const errs = [];
+p.on("pageerror", (e) => errs.push(String(e)));
+await p.goto("file:///" + path.join(dir, ".entry.html").replace(/\\/g, "/"));
+const cap = await p.evaluate(() => window.capture());
+writeFileSync(path.join(dir, ".captured.json"), JSON.stringify(cap, null, 2));
+console.log(JSON.stringify(cap, null, 2));
+console.log("errors:", errs.length ? errs : "none");
+await b.close();

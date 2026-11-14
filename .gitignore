@@ -21,3 +21,6 @@ data.json
 # 宣传素材（体积大，不进仓库）
 marketing/
 test/.xhs-*.html
+test/.entry.*
+test/.captured.json
+docs/images/obsidian/_*.png

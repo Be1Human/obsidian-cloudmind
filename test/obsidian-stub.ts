@@ -110,7 +110,8 @@ export class Menu {
         this.title = typeof t === "string" ? t : t.textContent;
         return this;
       },
-      setIcon() {
+      setIcon(n?: string) {
+        this.icon = n;
         return this;
       },
       setChecked(v?: boolean) {
@@ -138,8 +139,10 @@ export class Menu {
     return this;
   }
   addSeparator() {
+    (this.seps ||= []).push(this.items.length);
     return this;
   }
+  seps?: number[];
   showAtMouseEvent() {}
   showAtPosition() {}
 }

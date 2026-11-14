@@ -8,6 +8,45 @@ Edit your Markdown notes as **XMind-style mind maps** in Obsidian. Nothing is co
 
 ![CloudMind: a Markdown note shown as a boxed mind map](docs/images/01-hero.png)
 
+## Create a mind map · 如何创建导图
+
+Real screenshots from Obsidian 1.10 with CloudMind installed (Chinese UI). Red boxes mark where to click.
+以下是装好 CloudMind 后在 Obsidian 里的真实截图，红框是要点的位置。
+
+### New mind map · 新建一张导图
+
+**① Ribbon icon → 新建思维导图 (New mind map)**
+左侧栏的 CloudMind 图标 → 新建思维导图
+
+![Ribbon icon menu](docs/images/obsidian/01-ribbon-menu.png)
+
+**② Right-click a folder → CloudMind：新建思维导图** — creates the map inside that folder
+在文件列表里右键文件夹 → CloudMind：新建思维导图，导图会建在这个文件夹里
+
+![Folder context menu](docs/images/obsidian/02-folder-menu.png)
+
+**③ Command palette (`Ctrl+P`) → search “CloudMind”**
+命令面板（`Ctrl+P`）搜 CloudMind
+
+![Command palette](docs/images/obsidian/04-command-palette.png)
+
+**Result** — a new note `未命名导图.md` (“Untitled map”) is created with a central topic and three branches, and opens as a mind map. Rename it like any other note.
+新建后会生成 `未命名导图.md`（一个中心主题 + 三个分支）并直接以导图打开，可以像普通笔记一样重命名。
+
+![New mind map](docs/images/obsidian/05-new-mindmap.png)
+
+### Turn an existing note into a map · 把已有笔记变成导图
+
+**④ Note header button**, or **⑤ the CloudMind item in the status bar** — previews the open note as a mind map. Previewing never changes the file.
+点笔记右上角的导图按钮，或底部状态栏的 CloudMind，把当前笔记预览成导图。只预览不会改动文件。
+
+![Note header button and status bar](docs/images/obsidian/03-header-button.png)
+
+![An existing note previewed as a mind map](docs/images/obsidian/06-preview-existing.png)
+
+To make a note always open as a map, add `cloudmind: true` to its front matter (new maps already have it).
+想让某篇笔记每次都以导图打开，在它的 frontmatter 里加 `cloudmind: true`（新建的导图已经自带）。
+
 ## Screenshots
 
 | | |
@@ -121,6 +160,7 @@ To release: bump `version` in `package.json` with `npm version <x.y.z>` (this al
 
 CloudMind 把 Obsidian 里的 Markdown 笔记直接当成 **XMind 风格的思维导图**来编辑。不转换、不导出：导图就是笔记本身，标题和列表的层级就是分支，改动会直接写回同一个 `.md` 文件。
 
+- **怎么创建**：左侧栏 CloudMind 图标 → 新建思维导图；或在文件夹上右键 → CloudMind：新建思维导图；或 `Ctrl+P` 搜 CloudMind。已有笔记点右上角的导图按钮即可预览。带截图的步骤见上方 [如何创建导图](#create-a-mind-map--如何创建导图)。
 - 笔记 frontmatter 里写 `cloudmind: true`，打开时自动显示为导图；其它笔记可以点笔记右上角的 CloudMind 按钮预览（预览不会改动文件，编辑后才会写回）。
 - 工具栏可停靠在上下左右、悬浮拖动或隐藏；选中节点时上方有快捷条，底部有状态栏。
 - 编辑节点时输入 `[[` 可搜索并引用笔记，`Ctrl`+点击打开链接的笔记。
