@@ -39,22 +39,34 @@ export class WikiSuggest {
   private index = 0;
   private bound = false;
 
-  constructor(private app: App, private getSourcePath: () => string) {}
+  /** 编辑框所在的 document：视图可能在 Obsidian 的弹出窗口里，不能直接用全局 document */
+  constructor(private app: App, private getSourcePath: () => string, private getDoc: () => Document) {}
+
+  private get doc(): Document {
+    return this.getDoc();
+  }
+  private get win(): Window {
+    return this.getDoc().defaultView ?? window;
+  }
 
   attach() {
     if (this.bound) return;
     this.bound = true;
-    document.addEventListener("input", this.onInput, true);
-    document.addEventListener("compositionend", this.onInput, true);
-    document.addEventListener("selectionchange", this.onSelection);
+    this.boundDoc = this.doc;
+    this.boundDoc.addEventListener("input", this.onInput, true);
+    this.boundDoc.addEventListener("compositionend", this.onInput, true);
+    this.boundDoc.addEventListener("selectionchange", this.onSelection);
   }
 
+  private boundDoc: Document | null = null;
+
   destroy() {
-    if (this.bound) {
-      document.removeEventListener("input", this.onInput, true);
-      document.removeEventListener("compositionend", this.onInput, true);
-      document.removeEventListener("selectionchange", this.onSelection);
+    if (this.bound && this.boundDoc) {
+      this.boundDoc.removeEventListener("input", this.onInput, true);
+      this.boundDoc.removeEventListener("compositionend", this.onInput, true);
+      this.boundDoc.removeEventListener("selectionchange", this.onSelection);
       this.bound = false;
+      this.boundDoc = null;
     }
     this.close();
   }
@@ -66,9 +78,9 @@ export class WikiSuggest {
   /* ---------- 触发 ---------- */
 
   private editEl(): HTMLElement | null {
-    const sel = window.getSelection();
+    const sel = this.win.getSelection();
     const n = sel?.anchorNode;
-    const el = (n instanceof Element ? n : n?.parentElement) ?? null;
+    const el = (n?.instanceOf(Element) ? n : n?.parentElement) ?? null;
     return el?.closest<HTMLElement>(".smm-node-edit-wrap") ?? null;
   }
 
@@ -85,13 +97,14 @@ export class WikiSuggest {
 
   /** 光标前面是否处在一个未闭合的 [[xxx 中 */
   private context(): { node: Text; start: number; end: number; query: string } | null {
-    const sel = window.getSelection();
+    const sel = this.win.getSelection();
     if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return null;
-    const node = sel.anchorNode;
-    if (!(node instanceof Text)) return null;
+    const anchor = sel.anchorNode;
+    if (!anchor?.instanceOf(Text)) return null;
+    const node = anchor;
     const end = sel.anchorOffset;
     const before = node.data.slice(0, end);
-    const m = /\[\[([^\[\]|#\n]*)$/.exec(before);
+    const m = /\[\[([^[\]|#\n]*)$/.exec(before);
     if (!m) return null;
     return { node, start: m.index, end, query: m[1] };
   }
@@ -132,14 +145,15 @@ export class WikiSuggest {
 
   private render(query: string) {
     if (!this.el) {
-      this.el = document.body.createDiv({ cls: "cm-popover cm-suggest" });
+      this.el = this.doc.body.createDiv({ cls: "cm-popover cm-suggest" });
       // 不抢走编辑框焦点；也不让鼠标事件冒泡到 body —— 导图会把 body 上的点击当成“点了编辑框外面”而结束编辑
       this.el.addEventListener("mousedown", (e) => {
         e.preventDefault();
         e.stopPropagation();
       });
       this.el.addEventListener("click", (e) => e.stopPropagation());
-      window.addEventListener("keydown", this.onKey, true);
+      this.keyWin = this.win;
+      this.keyWin.addEventListener("keydown", this.onKey, true);
     }
     const el = this.el;
     el.empty();
@@ -167,7 +181,7 @@ export class WikiSuggest {
   private place() {
     const el = this.el;
     if (!el) return;
-    const sel = window.getSelection();
+    const sel = this.win.getSelection();
     let r: DOMRect | null = null;
     if (sel && sel.rangeCount) {
       const rects = sel.getRangeAt(0).getClientRects();
@@ -176,15 +190,17 @@ export class WikiSuggest {
         r = this.editEl()?.getBoundingClientRect() ?? null;
       }
     }
-    const vw = document.documentElement.clientWidth;
-    const vh = document.documentElement.clientHeight;
+    const vw = this.doc.documentElement.clientWidth;
+    const vh = this.doc.documentElement.clientHeight;
     const pw = el.offsetWidth;
     const ph = el.offsetHeight;
-    let x = (r?.left ?? 40) - 4;
+    const x = (r?.left ?? 40) - 4;
     let y = (r?.bottom ?? 40) + 6;
     if (y + ph > vh - 8) y = (r?.top ?? 40) - ph - 6;
-    el.style.left = Math.max(8, Math.min(x, vw - pw - 8)) + "px";
-    el.style.top = Math.max(8, Math.min(y, vh - ph - 8)) + "px";
+    el.setCssStyles({
+      left: Math.max(8, Math.min(x, vw - pw - 8)) + "px",
+      top: Math.max(8, Math.min(y, vh - ph - 8)) + "px",
+    });
   }
 
   private setIndex(i: number, scroll = true) {
@@ -199,7 +215,7 @@ export class WikiSuggest {
   private onKey = (e: KeyboardEvent) => {
     if (!this.el) return;
     // 输入法组词期间的回车/方向键是选字，不能拦
-    if (e.isComposing || e.keyCode === 229) return;
+    if (e.isComposing || e.key === "Process") return;
     const n = this.items.length;
     const stop = () => {
       e.preventDefault();
@@ -237,8 +253,8 @@ export class WikiSuggest {
     const after = node.data.slice(end);
     const rest = after.startsWith("]]") ? after.slice(2) : after;
     node.data = node.data.slice(0, start) + text + rest;
-    const sel = window.getSelection();
-    const range = document.createRange();
+    const sel = this.win.getSelection();
+    const range = this.doc.createRange();
     range.setStart(node, start + text.length);
     range.collapse(true);
     sel?.removeAllRanges();
@@ -250,9 +266,12 @@ export class WikiSuggest {
 
   close() {
     if (!this.el) return;
-    window.removeEventListener("keydown", this.onKey, true);
+    (this.keyWin ?? this.win).removeEventListener("keydown", this.onKey, true);
+    this.keyWin = null;
     this.el.remove();
     this.el = null;
     this.items = [];
   }
+
+  private keyWin: Window | null = null;
 }

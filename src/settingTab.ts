@@ -12,8 +12,6 @@ export class CloudMindSettingTab extends PluginSettingTab {
     containerEl.empty();
     const s = this.plugin.settings;
 
-    new Setting(containerEl).setName("CloudMind").setHeading();
-
     new Setting(containerEl)
       .setName("工具栏位置")
       .setDesc("导图界面里的专属工具栏。悬浮模式下可以用鼠标拖动抓手，位置会被记住。")

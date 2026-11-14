@@ -74,7 +74,7 @@ export class SmoothWheel {
   };
 
   cancel() {
-    if (this.raf) cancelAnimationFrame(this.raf);
+    if (this.raf) window.cancelAnimationFrame(this.raf);
     this.raf = 0;
     this.px = this.py = this.zoomLog = 0;
     this.smooth = false;
@@ -82,7 +82,7 @@ export class SmoothWheel {
 
   private schedule() {
     if (this.raf) return;
-    this.raf = requestAnimationFrame(this.tick);
+    this.raf = window.requestAnimationFrame(this.tick);
   }
 
   private tick = () => {

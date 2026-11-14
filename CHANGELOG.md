@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3
+
+- Passes the Obsidian community automated review rules (eslint-plugin-obsidianmd): no plugin name in settings headings, popout-window safe document/window/timer usage, `setCssStyles` instead of inline style assignments, no deprecated `execCommand` / `keyCode`.
+- The welcome notice is shown only after install or update, not on every start.
+
 ## 0.4.2
 
 - Fixed: Backspace and Delete did not delete the selected node while a Chinese (or other) input method was active. Those keys arrive with `keyCode` 229 and were mistaken for typing, so the node entered text editing instead. Deletion now uses the physical key, and `Ctrl`+Backspace also deletes.

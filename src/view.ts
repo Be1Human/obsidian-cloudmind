@@ -89,7 +89,7 @@ function promptModal(
             if (e.key === "Enter" && i instanceof HTMLTextAreaElement && (e.ctrlKey || e.metaKey)) submit();
           })
         );
-        setTimeout(() => inputs[0]?.focus(), 30);
+        window.setTimeout(() => inputs[0]?.focus(), 30);
       }
       onClose() {
         this.contentEl.empty();
@@ -252,8 +252,9 @@ export class CloudMindView extends TextFileView {
     // 点击画布时让焦点回到 body，这样键盘事件（含“选中后直接打字进入编辑”）才会被导图接收
     this.canvasEl.addEventListener("mousedown", () => {
       this.closePopover();
-      const ae = document.activeElement as HTMLElement | null;
-      if (ae && ae !== document.body && !ae.closest(".smm-node-edit-wrap")) ae.blur();
+      const doc = this.contentEl.ownerDocument;
+      const ae = doc.activeElement as HTMLElement | null;
+      if (ae && ae !== doc.body && !ae.closest(".smm-node-edit-wrap")) ae.blur();
     });
     this.contentEl.addEventListener("mouseenter", () => (this.mouseIn = true));
     this.contentEl.addEventListener("mouseleave", () => (this.mouseIn = false));
@@ -261,7 +262,7 @@ export class CloudMindView extends TextFileView {
     this.addAction("file-text", "切回文本视图", () => this.plugin.switchToText(this.leaf));
 
     // 编辑节点时输入 [[ 弹出笔记搜索
-    this.wiki = new WikiSuggest(this.app, () => this.file?.path ?? "");
+    this.wiki = new WikiSuggest(this.app, () => this.file?.path ?? "", () => this.contentEl.ownerDocument);
     this.wiki.attach();
 
     // 删除键：用物理键位判断，不依赖 keyCode。
@@ -291,9 +292,9 @@ export class CloudMindView extends TextFileView {
     this.wiki?.destroy();
     this.wiki = null;
     this.wheel.cancel();
-    if (this.resizeRaf) cancelAnimationFrame(this.resizeRaf);
-    if (this.nbRaf) cancelAnimationFrame(this.nbRaf);
-    if (this.stRaf) cancelAnimationFrame(this.stRaf);
+    if (this.resizeRaf) window.cancelAnimationFrame(this.resizeRaf);
+    if (this.nbRaf) window.cancelAnimationFrame(this.nbRaf);
+    if (this.stRaf) window.cancelAnimationFrame(this.stRaf);
     if (this.resizeTimer !== null) window.clearTimeout(this.resizeTimer);
     this.destroyMindMap();
   }
@@ -378,7 +379,7 @@ export class CloudMindView extends TextFileView {
   /* ---------- 创建 / 更新导图 ---------- */
 
   private autoThemeId() {
-    return document.body.classList.contains("theme-dark") ? "xmindDark" : "xmindFresh";
+    return activeDocument.body.classList.contains("theme-dark") ? "xmindDark" : "xmindFresh";
   }
   private curThemeId() {
     return this.fmTheme && THEMES.some((t) => t.id === this.fmTheme) ? this.fmTheme : this.autoThemeId();
@@ -431,7 +432,7 @@ export class CloudMindView extends TextFileView {
    */
   private handleResize() {
     if (this.resizeRaf) return;
-    this.resizeRaf = requestAnimationFrame(() => {
+    this.resizeRaf = window.requestAnimationFrame(() => {
       this.resizeRaf = 0;
       const w = this.canvasEl.clientWidth;
       const h = this.canvasEl.clientHeight;
@@ -634,7 +635,7 @@ export class CloudMindView extends TextFileView {
     const editing = !!t?.closest?.(".smm-node-edit-wrap");
     if (
       !editing &&
-      (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t && t.isContentEditable))
+      (t?.instanceOf?.(HTMLInputElement) || t?.instanceOf?.(HTMLTextAreaElement) || (t && t.isContentEditable))
     )
       return false;
     if (editing) return true;
@@ -690,18 +691,22 @@ export class CloudMindView extends TextFileView {
   private startWikiLink() {
     if (!this.mm) return;
     if (!this.hasSel()) return void new Notice("请先选中一个节点，再引用笔记");
-    const node = this.sel()[0];
+    const doc = this.contentEl.ownerDocument;
+    const win = doc.defaultView ?? window;
     const begin = () => {
-      const el = document.querySelector<HTMLElement>(".smm-node-edit-wrap");
+      const el = doc.querySelector<HTMLElement>(".smm-node-edit-wrap");
       if (!el) return;
       el.focus();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false); // 光标放到文字末尾，不覆盖原有文字
-      const s = window.getSelection();
+      // 光标放到文字末尾、插入 [[（不覆盖原有文字），再通知编辑框内容变了：触发笔记搜索、重新测量节点大小
+      const tail = doc.createTextNode("[[");
+      el.appendChild(tail);
+      const range = doc.createRange();
+      range.setStart(tail, tail.data.length);
+      range.collapse(true);
+      const s = win.getSelection();
       s?.removeAllRanges();
       s?.addRange(range);
-      document.execCommand("insertText", false, "[[");
+      el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: "[[" }));
     };
     if (this.mm.renderer.textEdit.isShowTextEdit()) return begin();
     // 必须等这次点击在 body 上冒泡完再打开编辑框，否则导图会把这次点击当成“点了编辑框外面”，
@@ -743,8 +748,7 @@ export class CloudMindView extends TextFileView {
       // 同步放置，不要先清掉位置再等下一帧：否则每次改设置工具栏都会闪一下跳到左上角
       this.placeFloat();
     } else {
-      this.toolbarEl.style.left = "";
-      this.toolbarEl.style.top = "";
+      this.toolbarEl.setCssStyles({ left: "", top: "" });
     }
     this.scheduleNodeBar();
   }
@@ -768,8 +772,7 @@ export class CloudMindView extends TextFileView {
     const cx = clamp(x, 4, Math.max(4, sw - tw - 4));
     const cy = clamp(y, 4, Math.max(4, sh - th - 4));
     this.floatXY = { x: cx, y: cy };
-    this.toolbarEl.style.left = cx + "px";
-    this.toolbarEl.style.top = cy + "px";
+    this.toolbarEl.setCssStyles({ left: cx + "px", top: cy + "px" });
   }
 
   private clampFloat() {
@@ -862,8 +865,8 @@ export class CloudMindView extends TextFileView {
       },
     });
 
-    S({ id: "note", icon: "sticky-note", label: "备注", tip: "编辑备注", need: true, run: () => this.editNote() });
-    S({ id: "link", icon: "link", label: "链接", tip: "添加超链接", need: true, run: () => this.editLink() });
+    S({ id: "note", icon: "sticky-note", label: "备注", tip: "编辑备注", need: true, run: () => void this.editNote() });
+    S({ id: "link", icon: "link", label: "链接", tip: "添加超链接", need: true, run: () => void this.editLink() });
     S({
       id: "wikilink",
       icon: "file-symlink",
@@ -880,7 +883,7 @@ export class CloudMindView extends TextFileView {
       need: true,
       run: (ev) => this.openNodeLinks(this.sel()[0], ev, false),
     });
-    S({ id: "tag", icon: "tag", label: "标签", tip: "添加标签", need: true, run: () => this.editTags() });
+    S({ id: "tag", icon: "tag", label: "标签", tip: "添加标签", need: true, run: () => void this.editTags() });
     S({ id: "icon", icon: "smile-plus", label: "图标", tip: "添加图标", need: true, run: (ev) => this.showIconMenu(ev) });
 
     S({
@@ -927,10 +930,10 @@ export class CloudMindView extends TextFileView {
 
   private makeBtn(spec: BtnSpec, parent: HTMLElement, withLabel: boolean): HTMLButtonElement {
     const b = parent.createEl("button", { cls: "cm-btn", attr: { "aria-label": spec.tip, "data-id": spec.id } });
-    const ico = b.createEl("span", { cls: "cm-ico" });
+    const ico = b.createSpan({ cls: "cm-ico" });
     setIcon(ico, spec.icon);
-    if (spec.swatch) b.createEl("span", { cls: "cm-swatchbar" });
-    if (withLabel) b.createEl("span", { cls: "cm-lbl", text: spec.label });
+    if (spec.swatch) b.createSpan({ cls: "cm-swatchbar" });
+    if (withLabel) b.createSpan({ cls: "cm-lbl", text: spec.label });
     b.addEventListener("click", (ev) => {
       if (b.disabled) return;
       spec.run(ev, b);
@@ -939,8 +942,7 @@ export class CloudMindView extends TextFileView {
   }
 
   private buildToolbar() {
-    const bar = (this.toolbarEl = document.createElement("div"));
-    bar.className = "cm-toolbar";
+    const bar = (this.toolbarEl = createDiv({ cls: "cm-toolbar" }));
     this.gripEl = bar.createDiv({ cls: "cm-grip", attr: { "aria-label": "拖动移动工具栏（双击复位）" } });
     setIcon(this.gripEl, "grip-vertical");
     this.bindGrip(this.gripEl);
@@ -971,8 +973,8 @@ export class CloudMindView extends TextFileView {
   private buildFab() {
     const b = this.fabEl.createEl("button", { cls: "cm-fab-btn", attr: { "aria-label": "显示 CloudMind 工具栏" } });
     setIcon(b, "panel-top-open");
-    b.createEl("span", { text: "显示工具栏" });
-    b.addEventListener("click", () => this.plugin.updateSettings({ toolbarPos: this.plugin.settings.lastDock }));
+    b.createSpan({ text: "显示工具栏" });
+    b.addEventListener("click", () => void this.plugin.updateSettings({ toolbarPos: this.plugin.settings.lastDock }));
   }
 
   private buildZoomBar() {
@@ -985,7 +987,7 @@ export class CloudMindView extends TextFileView {
       return b;
     };
     mk("minus", "缩小 (Ctrl+-)", () => this.mm?.view.narrow());
-    const lab = z.createEl("span", { cls: "cm-zoom-label", text: "100%", attr: { "aria-label": "点击恢复 100%" } });
+    const lab = z.createSpan({ cls: "cm-zoom-label", text: "100%", attr: { "aria-label": "点击恢复 100%" } });
     lab.addEventListener("click", () => this.mm?.view.reset());
     this.st.zoom = lab;
     mk("plus", "放大 (Ctrl+=)", () => this.mm?.view.enlarge());
@@ -1008,9 +1010,9 @@ export class CloudMindView extends TextFileView {
         if (spec.swatch && n) {
           const raw = n.getStyle?.(spec.swatch === "fill" ? "fillColor" : "color");
           const c = !raw || raw === "transparent" || raw === "none" ? "" : String(raw);
-          el.style.setProperty("--cm-swatch", c || "transparent");
+          el.setCssProps({ "--cm-swatch": c || "transparent" });
         } else if (spec.swatch) {
-          el.style.setProperty("--cm-swatch", "transparent");
+          el.setCssProps({ "--cm-swatch": "transparent" });
         }
       });
     };
@@ -1026,7 +1028,7 @@ export class CloudMindView extends TextFileView {
 
   private scheduleNodeBar() {
     if (this.nbRaf) return;
-    this.nbRaf = requestAnimationFrame(() => {
+    this.nbRaf = window.requestAnimationFrame(() => {
       this.nbRaf = 0;
       this.updateNodeBar();
     });
@@ -1100,7 +1102,7 @@ export class CloudMindView extends TextFileView {
     this.nbNode = node;
     this.nbIdx = bestIdx;
     const best = cands[bestIdx];
-    bar.style.transform = `translate(${Math.round(best.x)}px, ${Math.round(best.y)}px)`;
+    bar.setCssStyles({ transform: `translate(${Math.round(best.x)}px, ${Math.round(best.y)}px)` });
   }
 
   /** 快捷条上一次放在哪个候选位置（用于平移时保持稳定） */
@@ -1133,7 +1135,7 @@ export class CloudMindView extends TextFileView {
   private buildStatus() {
     const bar = this.statusEl;
     const seg = (key: string, cls = "", tip = "", fn?: () => void) => {
-      const el = bar.createEl("span", { cls: "cm-seg " + cls });
+      const el = bar.createSpan({ cls: "cm-seg " + cls });
       if (tip) el.setAttribute("aria-label", tip);
       if (fn) {
         el.classList.add("is-click");
@@ -1159,7 +1161,7 @@ export class CloudMindView extends TextFileView {
 
   private scheduleStatus() {
     if (this.stRaf) return;
-    this.stRaf = requestAnimationFrame(() => {
+    this.stRaf = window.requestAnimationFrame(() => {
       this.stRaf = 0;
       this.nodeCount = countNodes(this.mm?.renderer?.renderTree);
       const root = this.mm?.renderer?.renderTree;
@@ -1250,8 +1252,10 @@ export class CloudMindView extends TextFileView {
     let y = side ? r.top : r.bottom + 8;
     if (!side && y + ph > vh - 8) y = r.top - ph - 8; // 下方放不下就放上方
     if (side && x + pw > vw - 8) x = r.left - pw - 8;
-    el.style.left = clamp(x, 8, Math.max(8, vw - pw - 8)) + "px";
-    el.style.top = clamp(y, 8, Math.max(8, vh - ph - 8)) + "px";
+    el.setCssStyles({
+      left: clamp(x, 8, Math.max(8, vw - pw - 8)) + "px",
+      top: clamp(y, 8, Math.max(8, vh - ph - 8)) + "px",
+    });
     el.removeClass("cm-measuring");
     this.popEl = el;
     this.popAnchor = anchor;
@@ -1284,13 +1288,13 @@ export class CloudMindView extends TextFileView {
       };
       colors.forEach((c) => {
         const b = grid.createEl("button", { cls: "cm-swatch", attr: { "aria-label": c, "data-color": c } });
-        b.style.background = c;
+        b.setCssStyles({ background: c });
         b.addEventListener("click", () => pick(c));
       });
       const row = el.createDiv({ cls: "cm-pop-row" });
       const custom = row.createEl("label", { cls: "cm-pop-custom" });
-      custom.createEl("span", { text: "自定义" });
-      const input = custom.createEl("input", { attr: { type: "color" } }) as HTMLInputElement;
+      custom.createSpan({ text: "自定义" });
+      const input = custom.createEl("input", { attr: { type: "color" } });
       input.value = "#5b8ff9";
       input.addEventListener("change", () => pick(input.value));
       const reset = row.createEl("button", { cls: "cm-pop-reset", text: "恢复默认" });
@@ -1358,12 +1362,12 @@ export class CloudMindView extends TextFileView {
   }
 
   private colorTitle(color: string, label: string): DocumentFragment {
-    const f = document.createDocumentFragment();
-    const dot = document.createElement("span");
+    const f = createFragment();
+    const dot = createSpan();
     dot.className = "cm-dot";
-    dot.style.background = color;
+    dot.setCssStyles({ background: color });
     f.appendChild(dot);
-    f.appendChild(document.createTextNode(label));
+    f.appendText(label);
     return f;
   }
 
@@ -1581,7 +1585,7 @@ export class CloudMindView extends TextFileView {
   }
 
   private iconItems(m: Menu) {
-    const groups: any[] = (icons as any).nodeIconList ?? [];
+    const groups: any[] = icons.nodeIconList ?? [];
     groups.forEach((g) => {
       m.addItem((i) => {
         i.setTitle(g.name);

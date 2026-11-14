@@ -4,7 +4,6 @@ import { FM_MARK, LEGACY_MARKS, hasMindmapMark, newMindmapText } from "./mdTree"
 import { CloudMindSettings, DEFAULT_SETTINGS } from "./settings";
 import { CloudMindSettingTab } from "./settingTab";
 
-const VERSION = "0.4.2";
 
 export default class CloudMindPlugin extends Plugin {
   settings: CloudMindSettings = { ...DEFAULT_SETTINGS };
@@ -90,7 +89,12 @@ export default class CloudMindPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("file-open", refresh));
     this.app.workspace.onLayoutReady(refresh);
 
-    new Notice(`CloudMind ${VERSION} 已加载`);
+    // 只在首次安装 / 版本更新后提示一次，平时启动不打扰
+    const ver = this.manifest.version;
+    if (this.settings.lastVersion !== ver) {
+      new Notice(this.settings.lastVersion ? `CloudMind 已更新到 ${ver}` : `CloudMind ${ver} 已启用：点笔记右上角的导图图标即可预览`);
+      void this.updateSettings({ lastVersion: ver });
+    }
   }
 
   onunload() {

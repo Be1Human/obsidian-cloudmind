@@ -17,6 +17,8 @@ export interface CloudMindSettings {
   showStatus: boolean;
   /** 打开带 cloudmind 标记的笔记时自动用导图视图 */
   autoOpen: boolean;
+  /** 上次运行的插件版本，用来只在安装 / 更新后提示一次 */
+  lastVersion?: string;
 }
 
 export const DEFAULT_SETTINGS: CloudMindSettings = {

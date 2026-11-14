@@ -1,6 +1,6 @@
 {
   "name": "cloudmind",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "XMind-style mind maps for Obsidian, stored as plain Markdown.",
   "main": "main.js",
   "license": "MIT",
@@ -14,6 +14,7 @@
     "test:ui": "esbuild test/harness.ts --bundle --format=iife --outfile=test/harness.js --alias:obsidian=./test/obsidian-stub.ts --main-fields=module,main --loader:.json=json --log-level=error && node test/make-html.mjs && node test/smoke.mjs && node test/idle.mjs && node test/ui.mjs && node test/wiki.mjs && node test/wheel.mjs && node test/theme.mjs",
     "shots": "npm run build:harness && node test/shots.mjs",
     "build:harness": "esbuild test/harness.ts --bundle --format=iife --outfile=test/harness.js --alias:obsidian=./test/obsidian-stub.ts --main-fields=module,main --loader:.json=json --log-level=error",
+    "lint:review": "node tools/obsidian-review/node_modules/eslint/bin/eslint.js -c tools/obsidian-review/eslint.config.mjs src manifest.json package.json LICENSE",
     "test": "npm run test:md && npm run test:ui"
   },
   "dependencies": {

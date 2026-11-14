@@ -38,6 +38,37 @@ P.createDiv = function (o: any = {}) {
 P.createSpan = function (o: any = {}) {
   return this.createEl("span", o);
 };
+P.setCssStyles = function (styles: Record<string, string>) {
+  Object.assign(this.style, styles);
+};
+P.setCssProps = function (props: Record<string, string>) {
+  for (const k of Object.keys(props)) this.style.setProperty(k, props[k]);
+};
+const SP: any = SVGElement.prototype;
+SP.setCssStyles = P.setCssStyles;
+SP.setCssProps = P.setCssProps;
+// Node.instanceOf：Obsidian 用它做跨窗口安全的类型判断
+(Node.prototype as any).instanceOf = function (type: any) {
+  return this instanceof type;
+};
+(DocumentFragment.prototype as any).appendText = function (t: string) {
+  this.appendChild(document.createTextNode(t));
+};
+// 全局辅助函数与 activeDocument / activeWindow
+const mk = (tag: string, o: any = {}) => {
+  const el = document.createElement(tag);
+  if (typeof o === "string") o = { cls: o };
+  if (o.cls) el.className = o.cls;
+  if (o.text) el.textContent = o.text;
+  if (o.attr) for (const k of Object.keys(o.attr)) el.setAttribute(k, o.attr[k]);
+  return el;
+};
+w.createDiv = (o?: any) => mk("div", o);
+w.createSpan = (o?: any) => mk("span", o);
+w.createEl = (tag: string, o?: any) => mk(tag, o);
+w.createFragment = () => document.createDocumentFragment();
+w.activeDocument = document;
+w.activeWindow = window;
 
 export class TextFileView {
   contentEl: HTMLElement = document.createElement("div");

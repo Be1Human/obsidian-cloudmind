@@ -415,10 +415,10 @@ export function themeDef(id: string): ThemeDef {
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 function el(tag: string, attrs: Record<string, string | number>, parent?: Element): SVGElement {
-  const e = document.createElementNS(SVG_NS, tag);
+  const e = activeDocument.createElementNS(SVG_NS, tag);
   for (const k of Object.keys(attrs)) e.setAttribute(k, String(attrs[k]));
   parent?.appendChild(e);
-  return e as SVGElement;
+  return e;
 }
 
 const none = (c: any) => (!c || c === "transparent" || c === "none" ? "none" : String(c));

@@ -1,0 +1,14 @@
+{
+  "name": "cloudmind-obsidian-review",
+  "private": true,
+  "type": "module",
+  "description": "Local copy of the Obsidian community automated review lint (eslint-plugin-obsidianmd + typescript-eslint).",
+  "devDependencies": {
+    "eslint": "^9",
+    "eslint-plugin-obsidianmd": "latest",
+    "typescript-eslint": "^8",
+    "@eslint/js": "^9",
+    "typescript": "^5",
+    "globals": "^15"
+  }
+}
