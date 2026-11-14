@@ -18,7 +18,7 @@ const MIN = manifest.minAppVersion;
 const REPO = "github.com/Be1Human/obsidian-cloudmind";
 
 const img = (n) => pathToFileURL(path.join(shots, n)).href;
-const TOTAL = 7;
+const TOTAL = 8;
 
 const CSS = `
 *{box-sizing:border-box}
@@ -77,6 +77,19 @@ h2 .hl{color:#5b3fd9}
 .tree .d{color:#9c93c9}.tree .f{color:#ffd166;font-weight:700}
 .note{margin-top:20px;padding:18px 24px;border-radius:16px;background:#fff7d6;border:2px solid #ffe38a;font-size:26px;line-height:1.5;color:#6b4a00}
 .note b{color:#4a3200}
+.sec{margin:18px 0 10px;font-size:28px;font-weight:900;color:#3a2f73;display:flex;align-items:center;gap:12px}
+.sec:before{content:"";width:8px;height:28px;border-radius:4px;background:#ff4d4f}
+.obs{margin-bottom:12px}
+.row2{display:flex;gap:22px;align-items:flex-start;margin-bottom:12px}
+.row2 .obs{margin-bottom:0;flex:0 0 auto}
+.result{flex:1;background:#fff;border-radius:16px;border:2px solid #e4ddff;padding:18px 20px;font-size:24px;line-height:1.6;color:#2c2640;box-shadow:0 10px 24px rgba(40,20,110,.10)}
+.result .rt{font-size:26px;font-weight:900;color:#5b3fd9;margin-bottom:4px}
+.result b{color:#1d1830}
+.result .rs{margin-top:8px;font-size:21px;color:#8b84a8}
+.obsrow{margin-bottom:12px}
+.obsrow .obs{margin-bottom:0}
+.result1{margin:2px 0 4px;padding:14px 20px;border-radius:14px;background:#effaf3;border:2px solid #b9e8c8;font-size:24px;line-height:1.45;color:#1f5e37}
+.result1 b{color:#123d23}
 .read{background:#fff;border-radius:14px;box-shadow:0 12px 28px rgba(40,20,110,.14),0 0 0 1px rgba(0,0,0,.06);padding:14px 22px 16px;font-size:19px;line-height:1.5;color:#2c2640}
 .read .rcap{font-size:16px;color:#9a94b5;margin-bottom:6px}
 .read .rh1{font-size:27px;font-weight:900;margin:2px 0 4px}
@@ -230,13 +243,28 @@ cards.push(page(7, `
 <span class="d">     ├─</span> manifest.json
 <span class="d">     └─</span> styles.css</div></div></div>
     <div class="step"><div class="n">3</div><div class="c">Obsidian <b>设置 → 第三方插件</b>，在已安装插件里点刷新，打开 <b>CloudMind</b>，看到“CloudMind ${VER} 已加载”就成功了</div></div>
-    <div class="step"><div class="n">4</div><div class="c"><b>开始用</b>：点笔记右上角的导图图标预览；左侧栏 CloudMind 图标 → 新建思维导图</div></div>
+    <div class="step"><div class="n">4</div><div class="c"><b>开始用</b>：新建 / 预览导图的 5 个入口，见下一页 👉</div></div>
   </div>
   <div class="note" style="margin-top:18px;font-size:24px"><b>小提示</b>　Mac 上 .obsidian 是隐藏文件夹，Finder 里按 ⌘⇧. 显示 · 文件夹名必须是 <b>cloudmind</b> · 想自动更新，可以用 BRAT 插件添加 <b style="white-space:nowrap">Be1Human/obsidian-cloudmind</b></div>
 `));
 
+// 8 创建导图（一页看完：真实 Obsidian 截图，红框是要点的位置）
+cards.push(page(8, `
+  <h2 style="font-size:54px">装好后：<span class="hl">5 个入口</span>创建导图</h2>
+  <div class="sub" style="font-size:25px;margin-top:8px">以下都是 Obsidian 里的真实截图，<b style="color:#ff4d4f">红框</b>就是要点的地方</div>
+
+  <div class="sec">新建一张导图 · 任选一种</div>
+  <div class="obsrow"><img class="small obs" style="width:820px" src="${img("obs-ribbon.png")}"></div>
+  <div class="obsrow"><img class="small obs" style="width:760px" src="${img("obs-folder.png")}"></div>
+  <div class="obsrow"><img class="small obs" style="width:820px" src="${img("obs-palette.png")}"></div>
+  <div class="result1">✅ 新建后自动生成 <b>未命名导图.md</b>（中心主题 + 3 个分支），直接以导图打开</div>
+
+  <div class="sec">已有笔记 → 一键变导图</div>
+  <div class="obsrow"><img class="small obs" style="width:760px" src="${img("obs-header.png")}"></div>
+  <div class="obsrow" style="display:flex;align-items:center;gap:22px"><img class="small obs" style="width:310px" src="${img("obs-status.png")}"><div style="font-size:22px;line-height:1.5;color:#6b6585">只是预览，不编辑<br>就不会改动原文件</div></div>
+`));
 const browser = await chromium.launch({ executablePath: exe, headless: true });
-const names = ["01-封面", "02-基于Markdown", "03-数据不锁定", "04-编辑手感", "05-双链", "06-主题与工具栏", "07-安装教程"];
+const names = ["01-封面", "02-基于Markdown", "03-数据不锁定", "04-编辑手感", "05-双链", "06-主题与工具栏", "07-安装教程", "08-创建导图"];
 for (let i = 0; i < cards.length; i++) {
   const p = await browser.newPage({ viewport: { width: 1080, height: 1440 }, deviceScaleFactor: 2 });
   const htmlPath = path.join(base, `.card-${i + 1}.html`);

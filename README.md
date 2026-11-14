@@ -1,10 +1,12 @@
 # CloudMind
 
+**English** | [简体中文](README.zh-CN.md)
+
 Edit your Markdown notes as **XMind-style mind maps** in Obsidian. Nothing is converted or exported: the map *is* the note. Headings and lists become branches, and every change is written straight back to the same `.md` file.
 
 > Desktop only. The interface is currently in Chinese (简体中文) only.
 
-[中文说明见下方](#中文说明)
+> 中文用户请看 **[中文说明 README.zh-CN.md](README.zh-CN.md)**：安装、创建、编辑、快捷键、常见问题都有截图。
 
 ![CloudMind: a Markdown note shown as a boxed mind map](docs/images/01-hero.png)
 
@@ -158,12 +160,6 @@ To release: bump `version` in `package.json` with `npm version <x.y.z>` (this al
 
 ## 中文说明
 
-CloudMind 把 Obsidian 里的 Markdown 笔记直接当成 **XMind 风格的思维导图**来编辑。不转换、不导出：导图就是笔记本身，标题和列表的层级就是分支，改动会直接写回同一个 `.md` 文件。
+完整的中文使用教程（含真实截图）：**[README.zh-CN.md](README.zh-CN.md)**
 
-- **怎么创建**：左侧栏 CloudMind 图标 → 新建思维导图；或在文件夹上右键 → CloudMind：新建思维导图；或 `Ctrl+P` 搜 CloudMind。已有笔记点右上角的导图按钮即可预览。带截图的步骤见上方 [如何创建导图](#create-a-mind-map--如何创建导图)。
-- 笔记 frontmatter 里写 `cloudmind: true`，打开时自动显示为导图；其它笔记可以点笔记右上角的 CloudMind 按钮预览（预览不会改动文件，编辑后才会写回）。
-- 工具栏可停靠在上下左右、悬浮拖动或隐藏；选中节点时上方有快捷条，底部有状态栏。
-- 编辑节点时输入 `[[` 可搜索并引用笔记，`Ctrl`+点击打开链接的笔记。
-- 10 套主题（含 4 套"每个节点都有方块围住"的方块主题）、8 种结构，支持备注、图标、标签、概要、外框、关联线，可导出 PNG / SVG / `.xmind`。
-- 样式、折叠状态等信息保存在节点行尾的隐藏注释 `<!--mm:{…}-->` 里，阅读视图看不到；整张图的结构和主题保存在 frontmatter。
-- 仅支持桌面端；目前界面只有简体中文。
+还可以把 [docs/CloudMind使用教程.md](docs/CloudMind使用教程.md) 放进你的库里打开：它本身就是一张导图，边看边练。

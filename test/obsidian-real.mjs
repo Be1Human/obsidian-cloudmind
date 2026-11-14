@@ -139,8 +139,8 @@ await win.evaluate(async () => {
 await sleep(1200);
 
 // 在页面上画标注框（不影响 Obsidian 本身，截完就删）
-async function mark(items) {
-  await win.evaluate((items) => {
+async function mark(items, font = 15) {
+  await win.evaluate(([items, font]) => {
     document.querySelectorAll(".cmshot-mark").forEach((e) => e.remove());
     for (const it of items) {
       const el = typeof it.sel === "string" ? [...document.querySelectorAll(it.sel)].find((e) => !it.text || e.textContent.includes(it.text)) : null;
@@ -160,18 +160,18 @@ async function mark(items) {
         tag.textContent = it.label;
         const side = it.side || "right";
         const st = {
-          position: "fixed", zIndex: 99999, pointerEvents: "none", background: "#ff4d4f", color: "#fff", font: "600 15px/1.35 'Microsoft YaHei',sans-serif",
-          padding: "6px 12px", borderRadius: "8px", whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(255,77,79,.35)",
+          position: "fixed", zIndex: 99999, pointerEvents: "none", background: "#ff4d4f", color: "#fff", font: `700 ${font}px/1.35 'Microsoft YaHei',sans-serif`,
+          padding: font > 15 ? "7px 14px" : "6px 12px", borderRadius: "8px", whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(255,77,79,.35)",
         };
         if (side === "right") Object.assign(st, { left: r.right + pad + 12 + "px", top: r.top + r.height / 2 - 16 + "px" });
         if (side === "left") Object.assign(st, { right: innerWidth - (r.left - pad - 12) + "px", top: r.top + r.height / 2 - 16 + "px" });
         if (side === "below") Object.assign(st, { left: r.left - pad + "px", top: r.bottom + pad + 10 + "px" });
-        if (side === "above") Object.assign(st, { right: innerWidth - (r.right + pad) + "px", top: r.top - pad - 44 + "px" });
+        if (side === "above") Object.assign(st, { right: innerWidth - (r.right + pad) + "px", top: r.top - pad - (font > 15 ? 54 : 44) + "px" });
         Object.assign(tag.style, st);
         document.body.appendChild(tag);
       }
     }
-  }, items);
+  }, [items, font]);
   await sleep(200);
 }
 const clearMarks = () => win.evaluate(() => document.querySelectorAll(".cmshot-mark").forEach((e) => e.remove()));
@@ -184,6 +184,36 @@ const shot = async (name) => {
   await win.screenshot({ path: path.join(out, name + ".png") });
   console.log("saved", name);
 };
+// 小红书卡片用的局部图：裁出所有红框 + 标签所在的区域（再加上指定元素），四周留白
+const xhs = path.join(dir, "..", "marketing", "xiaohongshu", "shots");
+mkdirSync(xhs, { recursive: true });
+const crop = async (name, { pad = 36, extra = [], minW = 0, minH = 0 } = {}) => {
+  const r = await win.evaluate(
+    ([extra, pad, minW, minH]) => {
+      const els = [...document.querySelectorAll(".cmshot-mark")];
+      for (const s of extra) els.push(...document.querySelectorAll(s));
+      let L = 1e9, T = 1e9, R = -1e9, B = -1e9;
+      for (const e of els) {
+        const b = e.getBoundingClientRect();
+        if (!b.width) continue;
+        L = Math.min(L, b.left); T = Math.min(T, b.top); R = Math.max(R, b.right); B = Math.max(B, b.bottom);
+      }
+      L -= pad; T -= pad; R += pad; B += pad;
+      if (R - L < minW) { const c = (L + R) / 2; L = c - minW / 2; R = c + minW / 2; }
+      if (B - T < minH) { const c = (T + B) / 2; T = c - minH / 2; B = c + minH / 2; }
+      const W = innerWidth, H = innerHeight;
+      if (L < 0) { R -= L; L = 0; }
+      if (T < 0) { B -= T; T = 0; }
+      if (R > W) { L -= R - W; R = W; }
+      if (B > H) { T -= B - H; B = H; }
+      L = Math.max(0, L); T = Math.max(0, T);
+      return { x: Math.round(L), y: Math.round(T), width: Math.round(R - L), height: Math.round(B - T) };
+    },
+    [extra, pad, minW, minH]
+  );
+  await win.screenshot({ path: path.join(xhs, name + ".png"), clip: r });
+  console.log("cropped", name, JSON.stringify(r));
+};
 
 // ① 左侧栏图标 → 菜单
 await win.click('.side-dock-ribbon-action[aria-label="CloudMind 思维导图"]');
@@ -193,6 +223,11 @@ await mark([
   { sel: ".menu .menu-item", text: "新建思维导图", label: "① 左侧栏 CloudMind 图标 → 新建思维导图", pad: 2 },
 ]);
 await shot("01-ribbon-menu");
+await mark([
+  { sel: '.side-dock-ribbon-action[aria-label="CloudMind 思维导图"]', pad: 3 },
+  { sel: ".menu .menu-item", text: "新建思维导图", label: "① 左侧栏图标 → 新建思维导图", pad: 2 },
+], 22);
+await crop("obs-ribbon", { extra: [".menu"], pad: 22 });
 await clearMarks();
 await closeMenus();
 
@@ -204,6 +239,8 @@ await mark([
   { sel: ".menu .menu-item", text: "CloudMind：新建思维导图", label: "② 文件夹右键 → 在这里新建导图", pad: 2 },
 ]);
 await shot("02-folder-menu");
+await mark([{ sel: ".menu .menu-item", text: "CloudMind：新建思维导图", label: "② 文件夹右键 → 在这里新建", pad: 2 }], 22);
+await crop("obs-folder", { pad: 22, minH: 150 });
 await clearMarks();
 await closeMenus();
 
@@ -213,6 +250,10 @@ await mark([
   { sel: ".status-bar-item.cm-appstatus", label: "⑤ 或点底部状态栏", side: "above", pad: 3 },
 ]);
 await shot("03-header-button");
+await mark([{ sel: ".workspace-leaf.mod-active .view-action.cm-header-btn", label: "④ 笔记右上角：一键预览成导图", side: "left", pad: 4 }], 22);
+await crop("obs-header", { pad: 22, minW: 640 });
+await mark([{ sel: ".status-bar-item.cm-appstatus", label: "⑤ 或点底部状态栏", side: "above", pad: 3 }], 22);
+await crop("obs-status", { pad: 22 });
 await clearMarks();
 
 // ④ 命令面板
@@ -222,6 +263,8 @@ await win.keyboard.type("CloudMind");
 await sleep(600);
 await mark([{ sel: ".prompt .suggestion-item", text: "新建思维导图", label: "③ Ctrl+P 命令面板搜 CloudMind", side: "right", pad: 2 }]);
 await shot("04-command-palette");
+await mark([{ sel: ".prompt .suggestion-item", text: "新建思维导图", label: "③ Ctrl+P 搜 CloudMind", side: "above", pad: 2 }], 22);
+await crop("obs-palette", { extra: [".prompt-input-container", ".prompt .suggestion-item"], pad: 18 });
 await clearMarks();
 await closeMenus();
 
