@@ -1,206 +1,105 @@
-# CloudMind 中文说明
+<div align="center">
 
-[English](README.md) | **简体中文**
+# CloudMind
 
-在 Obsidian 里像 XMind 一样画思维导图，而数据就是你的 **Markdown 笔记本身**：标题和列表的层级就是导图的层级，在导图里改，改的就是这份 `.md`，不导出、不转换。
+**在 Obsidian 里画 XMind 风格的思维导图，数据就是 Markdown。**
 
-> 仅支持桌面版 Obsidian（1.5.0 及以上），界面为简体中文。
+[English](README.md) · **简体中文**
 
-![CloudMind 方块主题](docs/images/01-hero.png)
+</div>
 
-## 目录
+![CloudMind](docs/images/01-hero.png)
 
-- [安装](#安装)
-- [创建导图](#创建导图)
-- [编辑导图](#编辑导图)
-- [主题与结构](#主题与结构)
-- [引用笔记 \[\[双链\]\]](#引用笔记-双链)
-- [导出](#导出)
-- [笔记是怎么存的](#笔记是怎么存的)
-- [设置](#设置)
-- [快捷键一览](#快捷键一览)
-- [常见问题](#常见问题)
+**笔记本身就是导图。** 标题和列表的层级就是导图的分支，在导图里改，改的就是这份 `.md`，不用导入、导出、转换。
+
+- **纯 Markdown**：关掉插件，笔记照样是能读的标题和列表；搜索、反向链接、关系图谱、同步都照常。
+- **XMind 的手感**：`Tab`、`Enter`、拖拽、概要、外框、关联线，10 套主题、8 种结构。
+- **支持双链**：节点里输入 `[[` 就能引用库里的笔记。
+
+> 仅支持桌面版 · Obsidian 1.5.0 及以上 · 界面为简体中文
+
+---
 
 ## 安装
 
-### 先搞清楚：插件装在哪里
+Obsidian 的插件**装在“库”里**（就是你在 Obsidian 里打开的那个文件夹），不是装进 Obsidian 软件，也不是装在某篇笔记里。哪个库要用，就在哪个库里装一次。
 
-Obsidian 的插件**装在“库”里**，不是装在某一篇笔记里，也没有“装进 Obsidian 软件、所有库通用”的选项。这是 Obsidian 本身的设计，所有第三方插件都一样。
+**插件市场**（上架后）：设置 → 第三方插件 → 浏览，搜 **CloudMind** → 安装 → 启用。
 
-- **库（vault）**就是你在 Obsidian 里打开的那个文件夹，左下角显示的就是库名。
-- 每个库都有一个隐藏文件夹 `.obsidian`，插件放在里面的 `.obsidian/plugins/插件名/`。
-- 所以**有几个库要用，就要在几个库里各装一次**（多个库的省事办法见[下面](#多个库都想用)）。
+**手动安装**（现在用这个）：
+
+1. 在 [最新 Release](https://github.com/Be1Human/obsidian-cloudmind/releases/latest) 下载 `main.js`、`manifest.json`、`styles.css` 三个文件。
+2. 设置 → 第三方插件 → 点「已安装插件」右边的**文件夹图标**（打开插件文件夹）。在打开的文件夹里**新建文件夹 `cloudmind`**，把 3 个文件放进去。
+3. 点**刷新图标**（重新加载插件），再**打开 CloudMind 的开关**。
+
+<img src="docs/images/obsidian/07-plugins-folder.png" width="640" alt="设置 → 第三方插件：打开插件文件夹、重新加载、打开开关">
+
+<details>
+<summary><b>找不到文件夹？/ 多个库 / 更新 / 卸载</b></summary>
+
+**找不到文件夹？** 先关闭「安全模式」（第三方插件页最上面一项）。也可以右键任意笔记 →「在系统资源管理器中显示」，再进入 `.obsidian/plugins/`（隐藏文件夹：Windows 资源管理器勾选「查看 → 隐藏的项目」，Mac 访达按 `⌘ ⇧ .`）。放好后应该是这样：
 
 ```
-你的库/                          ← 你在 Obsidian 里打开的文件夹
-├─ 读书/  日记/  …                ← 你的笔记
-└─ .obsidian/                     ← 隐藏文件夹，Obsidian 的设置
-     └─ plugins/
-          └─ cloudmind/           ← 新建这个文件夹，名字必须是 cloudmind
-               ├─ main.js
-               ├─ manifest.json
-               └─ styles.css
+你的库/.obsidian/plugins/cloudmind/
+├─ main.js
+├─ manifest.json
+└─ styles.css
 ```
 
-### 方式一：插件市场（上架后）
-
-设置 → 第三方插件 → 社区插件市场「浏览」，搜 **CloudMind** → 安装 → 启用。会自动装进当前库。
-
-### 方式二：手动安装（现在用这个）
-
-**第 1 步：下载 3 个文件**
-
-打开 [最新 Release](https://github.com/Be1Human/obsidian-cloudmind/releases/latest)，在页面下方 Assets 里下载 `main.js`、`manifest.json`、`styles.css`。不用下载 Source code。
-
-**第 2 步：打开插件文件夹，放进去**
-
-在 Obsidian 里打开 **设置 → 第三方插件**：
-
-![设置 → 第三方插件](docs/images/obsidian/07-plugins-folder.png)
-
-1. 点「已安装插件」右边的**文件夹图标「打开插件文件夹」**，系统会直接打开当前库的 `.obsidian/plugins` 文件夹。
-2. 在里面**新建文件夹 `cloudmind`**，把下载的 3 个文件放进去。
-3. 回到 Obsidian，点文件夹图标旁边的**「重新加载插件」**，列表里出现 CloudMind，**打开它右边的开关**。
-
-启用后会提示「CloudMind 已启用」，笔记右上角也会多出一个导图图标，说明装好了。
-
-> **找不到插件文件夹？**
-> - 第一次装第三方插件时，如果「安全模式」是开着的，先把它关掉（设置页最上面那一项），才会出现「已安装插件」。
-> - 也可以在左侧文件列表里**右键任意一篇笔记 → 在系统资源管理器中显示**，找到库所在的文件夹，再进 `.obsidian/plugins/`。
-> - `.obsidian` 是隐藏文件夹：Windows 资源管理器里勾选「查看 → 隐藏的项目」；Mac 的访达里按 `⌘ ⇧ .`。
-
-### 多个库都想用
-
-挑一种：
-
-**A. 每个库各装一次（最简单）**
-在每个库里重复上面的第 2 步。也可以把装好的整个 `cloudmind` 文件夹复制到另一个库的 `.obsidian/plugins/` 里，再到那个库里打开开关。
-
-**B. 多个库共用一份（更新一次，所有库都生效）**
-在其它库里建一个“目录链接”，指向已经装好的那份。以下 Windows 命令我用真实 Obsidian 验证过，第二个库能正常加载 CloudMind。
-
-Windows（在“命令提示符”里运行，把路径换成你自己的）：
+**多个库都要用。** 在每个库里重复上面的步骤，或把 `cloudmind` 文件夹整个复制过去。想多个库共用一份（更新一次全部生效），可以建目录链接（已在 Windows 上实测可用）：
 
 ```bat
-mkdir "D:\第二个库\.obsidian\plugins"
 mklink /J "D:\第二个库\.obsidian\plugins\cloudmind" "D:\我的库\.obsidian\plugins\cloudmind"
 ```
 
-Mac / Linux（终端）：
+Mac / Linux：`ln -s ~/我的库/.obsidian/plugins/cloudmind ~/第二个库/.obsidian/plugins/cloudmind`。库在同步盘或用 Obsidian Sync 时，同步工具可能不认链接，请改用复制。
 
-```bash
-mkdir -p ~/第二个库/.obsidian/plugins
-ln -s ~/我的库/.obsidian/plugins/cloudmind ~/第二个库/.obsidian/plugins/cloudmind
-```
+**更新。** 用新版 3 个文件覆盖旧文件，再点「重新加载插件」。
 
-然后到第二个库里：设置 → 第三方插件 → 重新加载插件 → 打开 CloudMind 开关。
+**卸载。** 在第三方插件里关掉或卸载即可。你的笔记都是普通 Markdown，不受影响。
 
-注意：
-- 共用后，CloudMind 的**插件设置**（工具栏位置等）也是共用的；每张导图的主题、结构仍然各自存在笔记里。
-- 如果库放在 iCloud、坚果云等同步盘里，或用 Obsidian Sync 同步到其它设备，同步工具可能不认这种链接，这时请用方式 A。
+</details>
 
-### 更新
-
-- 手动安装的：下载新版的 3 个文件，覆盖 `cloudmind` 文件夹里的旧文件，再到设置里点「重新加载插件」或重启 Obsidian。更新后会提示「CloudMind 已更新到 x.x.x」。
-- 用方式 B 共用的：只更新原来那一份。
-- 插件市场安装的：设置 → 第三方插件 →「检查更新」。
-
-### 卸载
-
-设置 → 第三方插件 → 关掉 CloudMind 的开关，或在它的「更多选项」里卸载；也可以直接删掉 `.obsidian/plugins/cloudmind` 文件夹。**你的笔记不受影响**：导图本来就是普通的 Markdown，卸载后照样能打开、能读。
+---
 
 ## 创建导图
 
-以下都是装好 CloudMind 后在 Obsidian 里的真实截图，红框是要点的位置。
+| | 怎么做 | |
+|:-:|---|---|
+| ① | **左侧栏 CloudMind 图标** → 新建思维导图 | <img src="docs/images/obsidian/crop-ribbon.png" width="380"> |
+| ② | **右键文件夹** → CloudMind：新建思维导图 | <img src="docs/images/obsidian/crop-folder.png" width="380"> |
+| ③ | **`Ctrl+P`** 命令面板搜 CloudMind | <img src="docs/images/obsidian/crop-palette.png" width="380"> |
+| ④ | **已有笔记**：点笔记右上角的导图按钮 | <img src="docs/images/obsidian/crop-header.png" width="380"> |
+| ⑤ | **已有笔记**：点底部状态栏的 CloudMind | <img src="docs/images/obsidian/crop-status.png" width="170"> |
 
-### 新建一张导图（任选一种）
+①～③ 会新建 `未命名导图.md`（一个中心主题 + 三个分支）并以导图打开，像普通笔记一样改名即可。④⑤ 是把当前笔记预览成导图，**不编辑就不会改动文件**。
 
-**① 左侧栏的 CloudMind 图标 → 新建思维导图**
+想让某篇笔记每次都以导图打开，在 frontmatter 里加 `cloudmind: true`，新建的导图已经自带。
 
-![左侧栏菜单](docs/images/obsidian/01-ribbon-menu.png)
+---
 
-**② 在文件列表里右键文件夹 → CloudMind：新建思维导图**（导图会建在这个文件夹里）
+## 功能
 
-![文件夹右键菜单](docs/images/obsidian/02-folder-menu.png)
+<table>
+<tr>
+<td width="50%"><img src="docs/images/02-themes.png"><br><b>10 套主题</b>，其中 4 套“方块风”，每个节点都有方框。</td>
+<td width="50%"><img src="docs/images/04-wikilinks.png"><br><b>节点里写 [[双链]]</b>，<code>Ctrl</code>+点击打开笔记。</td>
+</tr>
+<tr>
+<td><img src="docs/images/03-floating-toolbar.png"><br><b>工具栏随意放</b>：上下左右、悬浮拖动或隐藏。</td>
+<td><img src="docs/images/05-dark-box.png"><br><b>深色模式</b>，自定义颜色的文字也看得清。</td>
+</tr>
+</table>
 
-**③ `Ctrl+P` 打开命令面板，搜 CloudMind → 新建思维导图**
+- **8 种结构**：思维导图、逻辑图（向右 / 向左）、组织结构图、目录组织图、时间轴、竖向时间轴、鱼骨图。
+- **节点内容**：备注、超链接、标签、图标、颜色、形状、概要、外框、关联线。
+- 选中节点时浮出**快捷条**，底部**状态栏**显示保存状态和操作提示。
+- 触控板和滚轮**平滑**平移、缩放（`Ctrl` + 滚轮缩放）。
+- **导出** PNG、SVG、`.xmind`，保存在笔记所在的文件夹。
 
-![命令面板](docs/images/obsidian/04-command-palette.png)
-
-新建后会生成 `未命名导图.md`（同名时依次为 `未命名导图 1.md`…），里面是一个中心主题和三个分支，并直接以导图打开。像普通笔记一样改名即可。
-
-![新建的导图](docs/images/obsidian/05-new-mindmap.png)
-
-### 把已有笔记变成导图
-
-**④ 点笔记右上角的导图按钮**，或 **⑤ 点底部状态栏的“CloudMind · 点击以导图预览”**。也可以在文件列表里右键笔记 → CloudMind：以思维导图预览。
-
-![右上角按钮和状态栏](docs/images/obsidian/03-header-button.png)
-
-![已有笔记预览成导图](docs/images/obsidian/06-preview-existing.png)
-
-- **只预览不会改动文件**，在导图里编辑之后才会写回。
-- 想让某篇笔记**每次都以导图打开**：在笔记开头的属性（frontmatter）里加一行 `cloudmind: true`。新建的导图已经自带。
-- 切回文字：左侧栏 CloudMind 图标 → 切回文本，或点底部状态栏，或命令“将当前思维导图切回文本”。
-
-## 编辑导图
-
-| 想做什么 | 怎么做 |
-|---|---|
-| 加子主题 / 同级主题 / 父主题 | 选中节点按 `Tab` / `Enter` / `Shift+Tab`，或用工具栏按钮 |
-| 改文字 | 选中后直接打字，或按 `F2`、双击；`Enter` 结束编辑 |
-| 删除 | `Del` 或 `Backspace`；`Shift+Backspace` 只删当前节点、保留子节点。中心主题不能删 |
-| 调整位置 | 拖动节点；或 `Ctrl+↑` / `Ctrl+↓` 上下移动 |
-| 折叠 / 展开 | 选中按 `/`，或点节点旁的展开 / 收起按钮 |
-| 撤销 / 重做 | `Ctrl+Z` / `Ctrl+Y` |
-| 样式 | 选中节点后用上方的快捷条或右键菜单：填充颜色、文字颜色、边框颜色、形状、加粗、斜体、图标 |
-| 备注、链接、标签 | 工具栏的“备注”“链接”“标签”按钮，或右键菜单 |
-| 概要、外框、关联线 | 工具栏“概要”（`Ctrl+G`）、“外框”，右键菜单“关联线” |
-| 平移 / 缩放 | 拖动空白处或滚轮平移；`Ctrl` + 滚轮缩放（触控板双指同样可用）；`Ctrl+I` 适应画布 |
-
-**工具栏**默认在顶部，可以停靠在上下左右、悬浮拖动或隐藏：点工具栏最右边的“设置”按钮，或在插件设置里改。悬浮时拖动左边的抓手移动，双击抓手回到默认位置。
-
-**选中节点**时，节点旁会浮出快捷条（加子主题、颜色、加粗、备注、删除等），会自动避开其它节点。
-
-**底部状态栏**显示保存状态、节点数、当前选中、操作提示、结构、主题和缩放，点“主题”“结构”可以直接切换。
-
-## 主题与结构
-
-点工具栏的 **主题** 按钮，会打开带缩略图的主题面板，共 10 套：
-
-| 方块系列（每个节点都有方框） | 其它风格 |
-|---|---|
-| 方块、方块·彩色、方块·深色、方块·蓝图 | 清新（默认）、商务、深色、极简线条、马卡龙、暖纸 |
-
-![主题面板](docs/images/02-themes.png)
-
-点 **结构** 按钮可切换 8 种结构：思维导图（双向）、逻辑图（向右 / 向左）、组织结构图、目录组织图、时间轴、竖向时间轴、鱼骨图。
-
-- 主题和结构**记在这篇笔记里**，每篇可以不同。
-- 主题面板底部的“跟随 Obsidian 明暗”会随 Obsidian 的浅色 / 深色自动切换。
-- 给节点手动填了浅色时，文字颜色会自动调成看得清的深色（只影响显示，不写进笔记）。
-
-## 引用笔记 [[双链]]
-
-编辑节点文字时输入 `[[`，会弹出库里的笔记列表：
-
-- `↑` `↓` 选择，`Enter` 插入，`Esc` 取消，继续打字可以筛选。
-- 也可以选中节点后点工具栏的“引用”按钮。
-- 含链接的节点会显示下划线，**`Ctrl` + 点击节点**在新标签页打开那篇笔记。
-- 写进文件的是标准的 `[[笔记名]]`，Obsidian 的反向链接、关系图谱都能识别。
-
-![节点里输入 [[](docs/images/04-wikilinks.png)
-
-## 导出
-
-工具栏 **导出** 按钮：
-
-- **PNG 图片**、**SVG 矢量图**、**.xmind 文件**（可以用 XMind 打开）。
-- 导出的文件保存在**导图笔记所在的文件夹**，文件名和笔记同名，例如 `读书/原子习惯.png`。
+---
 
 ## 笔记是怎么存的
-
-全部存在这一份 `.md` 里，没有任何附加文件：
 
 ```markdown
 ---
@@ -208,92 +107,80 @@ cloudmind: true
 cloudmind-layout: logicalStructure
 cloudmind-theme: cloudBox
 ---
-# 周末计划
-## 学习
-- 读完《原子习惯》
-- 整理 [[读书清单 2026]]
-## 运动 <!--mm:{"fillColor":"#C9F0DE"}-->
-- 跑步 5 公里
-  这一行是“跑步 5 公里”的备注
+# 中心主题
+## 分支 <!--mm:{"fillColor":"#FFE9A8"}-->
+- 子主题
+  这一行是“子主题”的备注
 ```
 
 | 内容 | 存在哪里 |
 |---|---|
-| 层级结构 | `#` 标题和 `-` 列表的嵌套 |
-| 节点备注 | 节点下面的普通文字行 |
-| 颜色、折叠、图标、概要、链接等样式 | 行尾的 `<!--mm:{…}-->` 注释，阅读模式里看不见 |
-| 整张图的结构、主题、彩虹分支线 | frontmatter：`cloudmind-layout`、`cloudmind-theme`、`cloudmind-rainbow` |
-| 是否以导图打开 | frontmatter：`cloudmind: true` |
+| 层级结构 | 标题和列表的嵌套 |
+| 节点备注 | 节点下面的普通文字 |
+| 颜色、折叠、图标、链接等 | 行尾隐藏的 `<!--mm:{…}-->` 注释，阅读模式看不见 |
+| 结构和主题 | frontmatter：`cloudmind-layout`、`cloudmind-theme` |
 
-所以：
+想边看边练？把 [docs/CloudMind使用教程.md](docs/CloudMind使用教程.md) 放进库里打开，它本身就是一张导图。
 
-- 关掉插件，笔记照样是能读的标题和列表。
-- 全文搜索、反向链接、关系图谱、同步（iCloud / 坚果云 / Git）都和普通笔记一样。
-- 想让一篇已有的长笔记变成导图，只要它是用标题和列表写的就行。
-
-## 设置
-
-设置 → 第三方插件 → CloudMind：
-
-| 设置 | 说明 | 默认 |
-|---|---|---|
-| 工具栏位置 | 顶部 / 底部 / 左侧 / 右侧 / 悬浮（可拖动）/ 隐藏 | 顶部 |
-| 图标大小 | 标准 / 紧凑 | 标准 |
-| 按钮显示文字 | 在图标旁显示按钮名称，刚上手更容易找 | 关 |
-| 节点快捷条 | 选中节点时在旁边浮出常用操作 | 开 |
-| 底部状态栏 | 显示保存状态、节点数、提示、结构、主题、缩放 | 开 |
-| 自动用导图打开 | 带 `cloudmind: true` 的笔记打开时自动显示为导图 | 开 |
-
-## 快捷键一览
+<details>
+<summary><b>快捷键</b></summary>
 
 | 按键 | 作用 |
 |---|---|
-| `Tab` | 添加子主题 |
-| `Enter` | 添加同级主题（编辑时为结束编辑） |
-| `Shift+Tab` | 在上方插入父主题 |
-| 直接打字 / `F2` | 编辑选中节点 |
+| `Tab` / `Enter` / `Shift+Tab` | 子主题 / 同级主题 / 父主题 |
+| 直接打字或 `F2` | 编辑节点 |
 | `Del` / `Backspace` | 删除节点（含子节点） |
-| `Shift+Backspace` | 只删当前节点，保留子节点 |
+| `Shift+Backspace` | 只删当前节点 |
 | `/` | 折叠 / 展开 |
-| `Ctrl+G` | 添加概要 |
+| `Ctrl+G` | 概要 |
 | `Ctrl+B` | 加粗 |
 | `Ctrl+↑` / `Ctrl+↓` | 上移 / 下移 |
-| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | 复制 / 剪切 / 粘贴节点 |
+| `Ctrl+C` / `X` / `V` | 复制 / 剪切 / 粘贴 |
 | `Ctrl+Z` / `Ctrl+Y` | 撤销 / 重做 |
-| `Ctrl+A` | 全选 |
-| `Ctrl+L` | 整理布局 |
-| `Ctrl+I` | 适应画布 |
-| `Ctrl` + 点击节点 | 打开节点里引用的笔记 |
-| `Ctrl` + 滚轮 | 缩放 |
+| `Ctrl+L` / `Ctrl+I` | 整理布局 / 适应画布 |
+| `Ctrl`+点击 | 打开引用的笔记 |
 
 Mac 上把 `Ctrl` 换成 `⌘`。
 
-## 常见问题
+</details>
 
-**装好后看不到 CloudMind？**
-逐项确认：① 文件夹名是 `cloudmind`，3 个文件直接在它里面（不要多套一层文件夹）；② 放在**当前打开的这个库**的 `.obsidian/plugins/` 里；③ 在第三方插件里点了「重新加载插件」并打开了开关；④「安全模式」已关闭。
+<details>
+<summary><b>设置</b></summary>
 
-**能不能装一次，所有库都能用？**
-不能，Obsidian 的插件都是按库安装的。多个库的省事办法见 [多个库都想用](#多个库都想用)。
+设置 → 第三方插件 → CloudMind：
 
-**为什么我的笔记没有自动以导图打开？**
-只有 frontmatter 里带 `cloudmind: true` 的笔记才会自动打开为导图；其它笔记点右上角的导图按钮预览。也可能是在设置里关了“自动用导图打开”。
+| 设置 | 默认 |
+|---|---|
+| 工具栏位置：顶部 / 底部 / 左侧 / 右侧 / 悬浮 / 隐藏 | 顶部 |
+| 图标大小：标准 / 紧凑 | 标准 |
+| 按钮显示文字 | 关 |
+| 节点快捷条 | 开 |
+| 底部状态栏 | 开 |
+| 带 `cloudmind: true` 的笔记自动用导图打开 | 开 |
 
-**导图会不会把我的笔记格式弄乱？**
-只预览不会改动文件。在导图里编辑后，会按“标题 + 列表”重新写回，并在行尾加上样式注释。不想改动的笔记，建议只预览不编辑；需要的话先备份或用 Git 管理。
+</details>
 
-**和其它思维导图插件冲突吗？**
-CloudMind 只认 `cloudmind` 这个标记，带其它插件标记（如 `mindmap-plugin`）的笔记不会被自动接管。
+<details>
+<summary><b>常见问题</b></summary>
 
-**手机上能用吗？**
-暂不支持，目前只支持桌面版。
+**装好后看不到 CloudMind？** 检查：文件夹名是 `cloudmind`，3 个文件直接在里面（没有多套一层）；放在当前这个库的 `.obsidian/plugins/` 里；点了「重新加载插件」并打开了开关；安全模式已关闭。
 
-**删除键没反应？**
-请更新到 0.4.2 及以上：旧版本在中文输入法开着时，`Backspace` 会被当成打字而不是删除。
+**能不能装一次，所有库都能用？** 不能，Obsidian 的插件都是按库安装的。见上面「安装」里的“多个库都要用”。
 
-**遇到问题或想要新功能？**
-在 [Issues](https://github.com/Be1Human/obsidian-cloudmind/issues) 里反馈，附上 Obsidian 版本、CloudMind 版本和复现步骤。
+**为什么笔记没有自动以导图打开？** 只有 frontmatter 带 `cloudmind: true` 的笔记会自动打开；其它笔记点右上角按钮预览。
+
+**会不会改乱我的笔记？** 只预览不会改动。在导图里编辑后，会按“标题 + 列表”写回，并在行尾加样式注释。重要笔记建议先备份。
+
+**手机上能用吗？** 暂不支持。
+
+**删除键没反应？** 请更新到 0.4.2 及以上（旧版在中文输入法下 `Backspace` 会被当成打字）。
+
+**其它问题** 请到 [Issues](https://github.com/Be1Human/obsidian-cloudmind/issues) 反馈，附上 Obsidian 和 CloudMind 的版本号。
+
+</details>
+
+---
 
 ## 开源协议
 
-[MIT](LICENSE)。基于 [simple-mind-map](https://github.com/wanglin2/mind-map)（MIT）。与 XMind 公司无关，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+[MIT](LICENSE)。基于 [simple-mind-map](https://github.com/wanglin2/mind-map)。与 XMind 公司无关（[说明](THIRD_PARTY_NOTICES.md)）。
