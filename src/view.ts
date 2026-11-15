@@ -192,7 +192,6 @@ export class CloudMindView extends TextFileView {
   private fabEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private ro: ResizeObserver | null = null;
-  private mouseIn = false;
 
   private specs: Record<string, BtnSpec> = {};
   private tbBtns = new Map<string, { el: HTMLButtonElement; spec: BtnSpec }>();
@@ -267,8 +266,6 @@ export class CloudMindView extends TextFileView {
       const ae = doc.activeElement as HTMLElement | null;
       if (ae && ae !== doc.body && !ae.closest(".smm-node-edit-wrap")) ae.blur();
     });
-    this.contentEl.addEventListener("mouseenter", () => (this.mouseIn = true));
-    this.contentEl.addEventListener("mouseleave", () => (this.mouseIn = false));
 
     this.addAction("file-text", "切回文本视图", () => this.plugin.switchToText(this.leaf));
 
@@ -613,7 +610,12 @@ export class CloudMindView extends TextFileView {
     if (!isDel || !this.mm || e.altKey) return;
     // 组字过程中（拼音还没上屏）的退格是删拼音，不能当成删节点
     if (e.isComposing) return;
+    // 每个导图都监听 window；另一个导图正在编辑时，也必须让浏览器处理文字。
+    const target = e.target as HTMLElement | null;
+    if (target?.closest?.(".smm-node-edit-wrap")) return;
     if (this.editing || this.mm.renderer.textEdit?.isShowTextEdit?.()) return;
+    // 节点删除只允许当前活动导图处理，避免其它导图残留的选中状态被误删。
+    if (this.app.workspace.getActiveViewOfType(CloudMindView) !== this) return;
     if (!this.canHandleKey(e) || !this.hasSel()) return;
     // 有弹层 / 选择列表打开时交给它们
     if (this.popEl || this.wiki?.isOpen) return;
@@ -641,16 +643,19 @@ export class CloudMindView extends TextFileView {
   }
 
   private canHandleKey(e: KeyboardEvent): boolean {
+    if (e.isComposing) return false;
     const t = e.target as HTMLElement | null;
     if (t?.closest?.(".modal-container, .menu, .suggestion-container, .prompt, .cm-popover")) return false;
-    const editing = !!t?.closest?.(".smm-node-edit-wrap");
+    const editor = t?.closest?.(".smm-node-edit-wrap");
+    // 编辑框和导图容器都可能属于另一个同时打开的 CloudMind 视图。
+    if (editor) return editor === this.mm?.renderer.textEdit?.textEditNode;
+    const ownerView = t?.closest?.(".cm-view");
+    if (ownerView && ownerView !== this.contentEl) return false;
     if (
-      !editing &&
       (t?.instanceOf?.(HTMLInputElement) || t?.instanceOf?.(HTMLTextAreaElement) || (t && t.isContentEditable))
     )
       return false;
-    if (editing) return true;
-    return this.app.workspace.getActiveViewOfType(CloudMindView) === this || this.mouseIn;
+    return this.app.workspace.getActiveViewOfType(CloudMindView) === this;
   }
 
   /* ---------- 双链：引用 / 高亮 / 打开 ---------- */
