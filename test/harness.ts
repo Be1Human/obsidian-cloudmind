@@ -78,3 +78,12 @@ w.boot = async (text: string, settings: any = {}) => {
 w.getText = () => w.__view.getViewData();
 w.hasMM = () => !!w.__view.mm;
 w.mm = () => w.__view.mm;
+w.bootSecond = async (text: string) => {
+  const view = new CloudMindView({} as any, plugin);
+  view.file = { basename: "第二张导图", path: "第二张导图.md", parent: { path: "/" } } as any;
+  document.getElementById("host")!.appendChild(view.contentEl);
+  await view.onOpen();
+  view.setViewData(text, true);
+  w.__second = view;
+  w.__view = view;
+};
