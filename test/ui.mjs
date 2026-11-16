@@ -479,6 +479,48 @@ cloudmind: true
   await page.keyboard.press("/"); await page.waitForTimeout(300);
   ok("'/' still folds instead of starting an edit", !(await editing()));
 }
+// ---------- 19. 内部状态卡住时 Backspace 仍然能删 ----------
+{
+  const MD = "---\ncloudmind: true\n---\n# 根\n## 甲\n- 甲1\n- 甲2\n- 甲3\n## 乙\n";
+  const load = async () => { await page.evaluate((t) => window.__view.setViewData(t, true), MD); await page.waitForTimeout(600); };
+  const pick = (nm) => page.evaluate((nm) => { let f; const w = (x) => { if (x.getData("text") === nm) f = x; x.children.forEach(w); }; w(window.mm().renderer.root); window.mm().execCommand("CLEAR_ACTIVE_NODE"); f.active(); }, nm);
+  const has = (nm) => page.evaluate((nm) => { let f = false; const w = (x) => { if (x.getData("text") === nm) f = true; x.children.forEach(w); }; w(window.mm().renderer.root); return f; }, nm);
+  const bs = async () => { await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press("Backspace"); await page.waitForTimeout(400); };
+
+  await load(); await pick("甲1");
+  await page.evaluate(() => { window.__view.editing = true; });
+  await bs();
+  ok("stuck 'editing' flag does not block Backspace", !(await has("甲1")));
+
+  await load(); await pick("甲2");
+  await page.evaluate(() => { const te = window.mm().renderer.textEdit; te.showTextEdit = true; });
+  await bs();
+  ok("stuck text-edit state without a visible box does not block Backspace", !(await has("甲2")));
+
+  await load(); await pick("甲3"); await page.waitForTimeout(100);
+  await page.click('.cm-toolbar [data-id="fill"]'); await page.waitForTimeout(250);
+  await bs();
+  ok("Backspace deletes even with the colour popover open (and closes it)", !(await has("甲3")) && !(await page.evaluate(() => !!document.querySelector(".cm-pop-color"))));
+
+  // 编辑中文件被外部改写 → 导图重建；之后用方向键选节点（不点击）再 Backspace
+  await load(); await pick("甲1"); await page.waitForTimeout(100);
+  await page.keyboard.press("F2"); await page.waitForTimeout(300);
+  await page.keyboard.type("x");
+  await page.evaluate((t) => window.__view.setViewData(t, false), MD + "## 丙\n");
+  await page.waitForTimeout(700);
+  ok("external change while editing closes the orphan edit box", !(await page.evaluate(() => { const b = document.querySelector(".smm-node-edit-wrap"); return !!b && b.style.display !== "none"; })) && !(await page.evaluate(() => window.__view.editing)));
+  await pick("乙"); await page.keyboard.press("ArrowUp"); await page.waitForTimeout(250);
+  const target = await page.evaluate(() => window.mm().renderer.activeNodeList[0]?.getData("text"));
+  await bs();
+  ok("after an external change, keyboard-selected topic can be deleted", !!target && !(await has(target)), String(target));
+
+  // 真在编辑文字时，Backspace 删的是字，不删节点
+  await load(); await pick("甲2"); await page.waitForTimeout(100);
+  await page.keyboard.press("F2"); await page.waitForTimeout(300);
+  await page.keyboard.press("End"); await page.keyboard.press("Backspace"); await page.waitForTimeout(200);
+  ok("Backspace inside the edit box deletes a character, not the topic", (await page.evaluate(() => document.querySelector(".smm-node-edit-wrap")?.innerText)) === "甲" && (await has("甲2")));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(200);
+}
 console.log("page errors:", errors.length ? errors : "none");
 ok("no page errors", errors.length === 0);
 await browser.close();

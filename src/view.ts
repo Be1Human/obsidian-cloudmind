@@ -416,6 +416,9 @@ export class CloudMindView extends TextFileView {
       if (!this.mm) {
         this.createMindMap();
       } else {
+        // 文件被外部改写（同步、另一个标签页编辑）后重建导图：旧的编辑框 / 弹层都指向旧节点，先收掉
+        this.endTextEdit(false);
+        this.closePopover();
         this.mm.setData(this.doc.root);
         this.applyConfig();
       }
@@ -609,39 +612,84 @@ export class CloudMindView extends TextFileView {
     mm.keyCommand.addShortcut("Control+b", () => this.toggleStyle("fontWeight", "bold", "normal"));
     mm.keyCommand.addShortcut("Escape", () => {
       if (this.popEl) return this.closePopover();
-      if (!this.editing && this.hasSel()) mm.execCommand("CLEAR_ACTIVE_NODE");
+      if (!this.editBoxShown() && this.hasSel()) mm.execCommand("CLEAR_ACTIVE_NODE");
     });
+  }
+
+  /** 编辑框是否真的显示在屏幕上（以界面为准，不信任内部标记） */
+  private editBoxShown(): boolean {
+    const box: HTMLElement | null = this.mm?.renderer?.textEdit?.textEditNode ?? null;
+    return !!box && box.isConnected && box.style.display !== "none";
+  }
+
+  /**
+   * 结束文字编辑并把所有“编辑中”的状态复位。restore = 恢复原文字（Esc / 取消）。
+   * 编辑框对应的节点已经不在导图里（比如文件被同步改写、导图重建）时，只关掉编辑框，不写任何数据。
+   */
+  private endTextEdit(restore: boolean) {
+    const te = this.mm?.renderer?.textEdit;
+    if (te) {
+      const box: HTMLElement | null = te.textEditNode ?? null;
+      const node = te.currentNode;
+      const alive = !!node && this.nodeInTree(node);
+      if (te.isShowTextEdit?.() && alive) {
+        if (restore && box) {
+          const lines = String(node.getData("text") ?? "").split("\n");
+          box.empty();
+          lines.forEach((ln, i) => {
+            if (i > 0) box.appendChild(box.ownerDocument.createElement("br"));
+            box.appendText(ln);
+          });
+        }
+        te.hideEditTextBox();
+      } else {
+        if (box) {
+          box.hide(); // Obsidian 的 hide() = display: none，库下次打开时会改回 block
+          box.empty();
+        }
+        te.setIsShowTextEdit?.(false);
+        te.currentNode = null;
+      }
+    }
+    this.wiki?.close();
+    if (this.editing) {
+      this.editing = false;
+      this.renderStatus();
+    }
+  }
+
+  private nodeInTree(node: any): boolean {
+    let found = false;
+    const walk = (n: any) => {
+      if (found || !n) return;
+      if (n === node) found = true;
+      else (n.children ?? []).forEach(walk);
+    };
+    walk(this.mm?.renderer?.root);
+    return found;
   }
 
   private onEscapeWhileEditing(e: KeyboardEvent) {
     if (e.key !== "Escape" || e.isComposing || !this.mm) return;
     const te = this.mm.renderer.textEdit;
-    if (!te?.isShowTextEdit?.()) return;
+    if (!te?.isShowTextEdit?.() && !this.editBoxShown()) return;
     // [[ 笔记列表开着时，Esc 先关列表
     if (this.wiki?.isOpen) return;
     const t = e.target as HTMLElement | null;
     if (!t?.closest?.(".smm-node-edit-wrap") && !this.canHandleKey(e)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    // 取消：把编辑框内容恢复成原文字再关闭
-    const box: HTMLElement | null = te.textEditNode ?? null;
-    const node = te.currentNode;
-    if (box && node) {
-      const lines = String(node.getData("text") ?? "").split("\n");
-      box.empty();
-      lines.forEach((ln, i) => {
-        if (i > 0) box.appendChild(box.ownerDocument.createElement("br"));
-        box.appendText(ln);
-      });
-    }
-    te.hideEditTextBox();
+    // 取消：恢复原文字再关闭
+    this.endTextEdit(true);
   }
 
   /** F2 进入编辑；选中单个节点时直接打英文 / 数字：保留原文字、把这个字接在后面 */
   private onTypeToEdit(e: KeyboardEvent) {
     if (!this.mm || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
     const te = this.mm.renderer.textEdit;
-    if (te?.isShowTextEdit?.() || this.editing || this.popEl || this.wiki?.isOpen) return;
+    if (this.editBoxShown() || (this.popEl && this.popEl.isConnected) || this.wiki?.isOpen) return;
+    // 内部标记说“在编辑”但界面上没有编辑框：标记卡住了，复位
+    if (te?.isShowTextEdit?.() || this.editing) this.endTextEdit(false);
     const list = this.sel();
     if (list.length !== 1) return;
     const isF2 = e.key === "F2";
@@ -676,12 +724,19 @@ export class CloudMindView extends TextFileView {
     if (!isDel || !this.mm || e.altKey) return;
     // 组字过程中（拼音还没上屏）的退格是删拼音，不能当成删节点
     if (e.isComposing) return;
-    if (this.editing || this.mm.renderer.textEdit?.isShowTextEdit?.()) return;
+    const t = e.target as HTMLElement | null;
+    // 光标真的在一个显示着的编辑框里：这是在删文字
+    if (t?.closest?.(".smm-node-edit-wrap") && this.editBoxShown()) return;
+    // 光标在弹层里的输入框（比如颜色选择）：交给它
+    if (this.popEl?.isConnected && t && this.popEl.contains(t) && t.matches?.("input, textarea")) return;
     if (!this.canHandleKey(e) || !this.hasSel()) return;
-    // 有弹层 / 选择列表打开时交给它们
-    if (this.popEl || this.wiki?.isOpen) return;
     e.preventDefault();
     e.stopImmediatePropagation();
+    // 删除前把可能残留的状态复位：没有焦点的编辑框、弹层、笔记列表、卡住的“编辑中”标记
+    const te = this.mm.renderer.textEdit;
+    if (te?.isShowTextEdit?.() || this.editing || this.editBoxShown()) this.endTextEdit(false);
+    if (this.popEl) this.closePopover();
+    this.wiki?.close();
     this.deleteSelection(e.shiftKey);
   }
 
@@ -1111,7 +1166,7 @@ export class CloudMindView extends TextFileView {
   private updateNodeBar() {
     const bar = this.nodebarEl;
     const list = this.sel();
-    if (!this.mm || !this.plugin.settings.showNodeBar || this.editing || this.dragging || list.length !== 1) {
+    if (!this.mm || !this.plugin.settings.showNodeBar || (this.editing && this.editBoxShown()) || this.dragging || list.length !== 1) {
       return this.hideNodeBar();
     }
     const node = list[0];
@@ -1253,7 +1308,7 @@ export class CloudMindView extends TextFileView {
   }
 
   private hintText(): string {
-    if (this.editing) return "输入文字 · Enter 完成 · Shift+Enter 换行";
+    if (this.editing && this.editBoxShown()) return "输入文字 · Enter 完成 · Esc 取消 · Shift+Enter 换行";
     const n = this.sel().length;
     if (n === 0) return "点击选中节点 · 双击编辑 · 滚轮平移 · Ctrl+滚轮缩放 · 右键更多";
     if (n > 1) return "Del 删除 · Ctrl+C/X/V 复制剪切粘贴 · 拖动整体移动 · Esc 取消选择";

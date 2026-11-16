@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.9
+
+- Fixed: `Backspace` / `Delete` could stop deleting topics until the map was reopened. The plugin relied on internal "editing" / "popover open" flags that could get stuck (for example when the note was changed by Sync or in another tab while a topic was being edited, which also left an orphan edit box on screen). Deleting now checks what is actually on screen: it only types into the edit box when the cursor really is in a visible edit box; otherwise it closes any leftover edit box or popover and deletes the selected topic.
+- When the note is changed from outside while editing, the edit box and popovers are closed before the map is rebuilt.
+
 ## 0.4.8
 
 - Fixed: typing on a selected topic wiped its text and dropped the first key. Typing now keeps the text and appends what you type.

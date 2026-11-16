@@ -224,6 +224,131 @@ const crop = async (name, { pad = 36, extra = [], minW = 0, minH = 0 } = {}) => 
   console.log("cropped", name, JSON.stringify(r));
 };
 
+// 文件被外部改写（同步 / 另一个标签页编辑）之后还能不能删
+if (MODE === "extdel") {
+  const MD = "---\ncloudmind: true\ncloudmind-layout: logicalStructure\n---\n# 根\n## 甲\n- 甲1\n- 甲2\n- 甲3\n## 乙\n- 乙1\n- 乙2\n";
+  let k = 0;
+  const open = async () => {
+    await win.keyboard.press("Escape");
+    await win.evaluate(() => { ["markdown", "cloudmind-view"].forEach((t) => window.app.workspace.getLeavesOfType(t).forEach((l) => l.detach())); });
+    await sleep(300);
+    k++;
+    await win.evaluate(async ([md, k]) => {
+      const p = `读书/外部修改-${k}.md`;
+      await window.app.vault.create(p, md);
+      await window.app.workspace.getLeaf(true).openFile(window.app.vault.getAbstractFileByPath(p));
+    }, [MD, k]);
+    await win.waitForFunction(() => !!window.app.workspace.getLeavesOfType("cloudmind-view")[0]?.view?.mm?.renderer?.root?.group?.node?.isConnected, null, { timeout: 15000 });
+    await sleep(700);
+    return `读书/外部修改-${k}.md`;
+  };
+  const extModify = (p, add) => win.evaluate(async ([p, add]) => { const f = window.app.vault.getAbstractFileByPath(p); const t = await window.app.vault.read(f); await window.app.vault.modify(f, t + add); }, [p, add]);
+  const pt = (t) => win.evaluate((t) => { const v = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view; let f; const w = (x) => { if (x.getData("text") === t) f = x; x.children.forEach(w); }; w(v.mm.renderer.root); if (!f) return null; const r = f.getRectInSvg(); const c = v.mm.el.getBoundingClientRect(); return { x: c.left + r.left + r.width / 2, y: c.top + r.top + r.height / 2 }; }, t);
+  const count = () => win.evaluate(() => { let n = 0; const w = (x) => { n++; x.children.forEach(w); }; w(window.app.workspace.getLeavesOfType("cloudmind-view")[0].view.mm.renderer.root); return n; });
+  const state = () => win.evaluate(() => { const v = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view; const b = v.mm.renderer.textEdit.textEditNode; return { editing: v.editing, textEdit: v.mm.renderer.textEdit.isShowTextEdit(), boxVisible: !!b && b.style.display !== "none" && b.isConnected, pop: !!v.popEl, popConnected: !!v.popEl?.isConnected, sel: v.mm.renderer.activeNodeList.map((n) => n.getData("text")) }; });
+  const del = async (label, target) => {
+    const p = await pt(target); await win.mouse.click(p.x, p.y); await sleep(250);
+    const st = await state(); const n0 = await count();
+    await win.keyboard.press("Backspace"); await sleep(450);
+    const ok = (await count()) < n0;
+    console.log(`${ok ? "✓" : "✗"} ${label} → 删「${target}」${ok ? "成功" : "失败"}`, ok ? "" : JSON.stringify(st));
+    return ok;
+  };
+  const res = [];
+  let p = await open();
+  await extModify(p, "## 丙\n"); await sleep(1200);
+  res.push(await del("没在编辑时文件被外部改写", "甲1"));
+  p = await open();
+  { const q = await pt("甲2"); await win.mouse.dblclick(q.x, q.y); await sleep(300); await win.keyboard.type("x"); }
+  await extModify(p, "## 丙\n"); await sleep(1200);
+  console.log("   编辑中被改写后状态:", JSON.stringify(await state()));
+  res.push(await del("编辑节点文字时文件被外部改写", "甲3"));
+  p = await open();
+  { const q = await pt("乙1"); await win.mouse.click(q.x, q.y); await sleep(250); await win.click('.workspace-leaf.mod-active .cm-toolbar [data-id="fill"]').catch(() => {}); await sleep(300); }
+  await extModify(p, "## 丙\n"); await sleep(1200);
+  console.log("   颜色面板开着时被改写后状态:", JSON.stringify(await state()));
+  res.push(await del("颜色面板开着时文件被外部改写", "乙2"));
+  p = await open();
+  { const q = await pt("甲2"); await win.mouse.dblclick(q.x, q.y); await sleep(300); await win.keyboard.type("[["); await sleep(400); }
+  await extModify(p, "## 丙\n"); await sleep(1200);
+  res.push(await del("[[ 笔记列表开着时文件被外部改写", "甲1"));
+  console.log(`\n外部改写：${res.filter(Boolean).length}/${res.length} 删除成功`);
+  await app.close();
+  process.exit(0);
+}
+// 用用户真实导图的副本：逐个节点点击 + Backspace，并穿插编辑 / 缩放 / 滚动，记录删不掉的情况
+if (MODE === "realdel") {
+  const cdp = await win.context().newCDPSession(win);
+  const src = process.argv[3] || "读书/真实导图.md";
+  const V = () => 'window.app.workspace.getLeavesOfType("cloudmind-view")[0].view';
+  const open = async () => {
+    await win.keyboard.press("Escape");
+    await win.evaluate(() => { ["markdown", "cloudmind-view"].forEach((t) => window.app.workspace.getLeavesOfType(t).forEach((l) => l.detach())); });
+    await sleep(300);
+    await win.evaluate(async (src) => {
+      window.__rn = (window.__rn || 0) + 1;
+      const text = await window.app.vault.read(window.app.vault.getAbstractFileByPath(src));
+      const p = `读书/真实副本-${window.__rn}.md`;
+      await window.app.vault.create(p, text);
+      await window.app.workspace.getLeaf(true).openFile(window.app.vault.getAbstractFileByPath(p));
+    }, src);
+    await win.waitForFunction(() => !!window.app.workspace.getLeavesOfType("cloudmind-view")[0]?.view?.mm?.renderer?.root?.group?.node?.isConnected, null, { timeout: 15000 });
+    await sleep(700);
+    await win.evaluate(() => window.app.workspace.getLeavesOfType("cloudmind-view")[0].view.mm.view.fit(undefined, true, 40));
+    await sleep(500);
+  };
+  const state = () => win.evaluate(() => {
+    const v = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view;
+    return { editing: v.editing, textEdit: v.mm.renderer.textEdit.isShowTextEdit(), pop: !!v.popEl, popConnected: !!v.popEl?.isConnected, wiki: !!v.wiki?.isOpen, sel: v.mm.renderer.activeNodeList.map((n) => n.getData("text")), mouseIn: v.mouseIn, activeIsMe: window.app.workspace.getActiveViewOfType(v.constructor) === v, focus: (document.activeElement?.className?.toString?.() || document.activeElement?.tagName || "").slice(0, 30) };
+  });
+  const leaves = () => win.evaluate(() => {
+    const v = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view; const c = v.mm.el.getBoundingClientRect(); const out = [];
+    const w = (x) => { if (!x.isRoot && !x.isGeneralization) { const r = x.getRectInSvg(); if (r.left > 0 && r.top > 0 && r.left + r.width < c.width && r.top + r.height < c.height) out.push({ t: x.getData("text"), x: c.left + r.left + Math.min(r.width / 2, 30), y: c.top + r.top + r.height / 2 }); } x.children.forEach(w); };
+    w(v.mm.renderer.root); return out;
+  });
+  const count = () => win.evaluate(() => { let n = 0; const w = (x) => { n++; x.children.forEach(w); }; w(window.app.workspace.getLeavesOfType("cloudmind-view")[0].view.mm.renderer.root); return n; });
+  const c = await (async () => { await open(); return win.evaluate(() => { const r = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view.mm.el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }); })();
+  const fails = [];
+  const tryDelete = async (label) => {
+    const list = await leaves();
+    if (!list.length) return;
+    const p = list[Math.floor(list.length / 2)];
+    await win.mouse.click(p.x, p.y); await sleep(250);
+    const st = await state();
+    const n0 = await count();
+    await win.keyboard.press("Backspace"); await sleep(450);
+    const n1 = await count();
+    const ok = n1 < n0;
+    console.log(`${ok ? "✓" : "✗"} ${label}  点「${p.t}」→ 选中 ${JSON.stringify(st.sel)} → ${ok ? "删除" : "没删"}`, ok ? "" : JSON.stringify(st));
+    if (!ok) fails.push(label);
+  };
+  const steps = [
+    ["直接删", async () => {}],
+    ["双击编辑→Enter", async () => { const p = (await leaves())[3]; await win.mouse.dblclick(p.x, p.y); await sleep(300); await win.keyboard.press("Enter"); await sleep(300); }],
+    ["编辑中 Ctrl+滚轮缩放→点空白", async () => { const p = (await leaves())[4]; await win.mouse.dblclick(p.x, p.y); await sleep(300); for (let i = 0; i < 4; i++) { await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: c.x, y: c.y, deltaX: 0, deltaY: -100, modifiers: 2 }); await sleep(80); } await sleep(400); await win.mouse.click(c.x + 5, c.y + 300); await sleep(300); }],
+    ["编辑中滚轮平移", async () => { const p = (await leaves())[2]; await win.mouse.dblclick(p.x, p.y); await sleep(300); for (let i = 0; i < 6; i++) { await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: c.x, y: c.y, deltaX: 0, deltaY: 60 }); await sleep(30); } await sleep(400); }],
+    ["编辑中点另一个节点", async () => { const l = await leaves(); await win.mouse.dblclick(l[1].x, l[1].y); await sleep(300); await win.mouse.click(l[5].x, l[5].y); await sleep(300); }],
+    ["编辑中点工具栏按钮", async () => { const p = (await leaves())[1]; await win.mouse.dblclick(p.x, p.y); await sleep(300); await win.click('.workspace-leaf.mod-active .cm-toolbar [data-id="bold"]').catch(() => {}); await sleep(300); }],
+    ["直接打字→Enter", async () => { const p = (await leaves())[2]; await win.mouse.click(p.x, p.y); await sleep(200); await win.keyboard.type("ab"); await win.keyboard.press("Enter"); await sleep(300); }],
+    ["打字中输入 [[ → Esc → Esc", async () => { const p = (await leaves())[2]; await win.mouse.dblclick(p.x, p.y); await sleep(300); await win.keyboard.type("[["); await sleep(400); await win.keyboard.press("Escape"); await sleep(200); await win.keyboard.press("Escape"); await sleep(300); }],
+    ["打开颜色面板→点空白", async () => { const p = (await leaves())[2]; await win.mouse.click(p.x, p.y); await sleep(250); await win.click('.workspace-leaf.mod-active .cm-toolbar [data-id="fill"]').catch(() => {}); await sleep(300); await win.mouse.click(c.x - 200, c.y + 250); await sleep(300); }],
+    ["打开图标面板→Esc", async () => { const p = (await leaves())[2]; await win.mouse.click(p.x, p.y); await sleep(250); await win.click('.workspace-leaf.mod-active .cm-toolbar [data-id="icon"]').catch(() => {}); await sleep(300); await win.keyboard.press("Escape"); await sleep(300); }],
+    ["备注弹窗→取消", async () => { const p = (await leaves())[2]; await win.mouse.click(p.x, p.y); await sleep(250); await win.click('.workspace-leaf.mod-active .cm-toolbar [data-id="note"]').catch(() => {}); await sleep(400); await win.locator(".modal button", { hasText: "取消" }).first().click().catch(() => {}); await sleep(300); }],
+    ["Tab 新建→打字→Enter", async () => { const p = (await leaves())[2]; await win.mouse.click(p.x, p.y); await sleep(250); await win.keyboard.press("Tab"); await sleep(400); await win.keyboard.type("新"); await win.keyboard.press("Enter"); await sleep(400); }],
+    ["拖动节点", async () => { const l = await leaves(); await win.mouse.move(l[6].x, l[6].y); await win.mouse.down(); await win.mouse.move(l[2].x, l[2].y + 20, { steps: 10 }); await win.mouse.up(); await sleep(600); }],
+    ["切到文本再切回", async () => { await win.evaluate(() => window.app.commands.executeCommandById("cloudmind:open-as-text")); await sleep(900); await win.click(".workspace-leaf.mod-active .view-action.cm-header-btn"); await sleep(1500); }],
+    ["Ctrl+Z 撤销", async () => { await win.keyboard.press("Control+z"); await sleep(400); }],
+    ["连续删 5 个", async () => { for (let i = 0; i < 4; i++) { const l = await leaves(); await win.mouse.click(l[0].x, l[0].y); await sleep(200); await win.keyboard.press("Backspace"); await sleep(350); } }],
+  ];
+  await open();
+  for (const [name, fn] of steps) {
+    try { await fn(); } catch (e) { console.log("  (setup error)", name, String(e).slice(0, 120)); }
+    await tryDelete(name);
+  }
+  console.log(`\n真实导图：${steps.length - fails.length}/${steps.length} 删除成功`, fails.length ? "失败: " + fails.join(" / ") : "");
+  await app.close();
+  process.exit(0);
+}
 // Backspace / Delete 删除节点：各种操作顺序之后都要能删
 if (MODE === "backspace") {
   const cdp = await win.context().newCDPSession(win);

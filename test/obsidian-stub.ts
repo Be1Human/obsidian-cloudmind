@@ -18,6 +18,12 @@ P.removeClass = function (c: string) {
 P.toggleClass = function (c: string, on: boolean) {
   this.classList.toggle(c, !!on);
 };
+P.hide = function () {
+  this.style.display = "none";
+};
+P.show = function () {
+  this.style.display = "";
+};
 P.setText = function (t: string) {
   this.textContent = t;
 };
