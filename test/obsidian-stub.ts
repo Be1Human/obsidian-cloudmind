@@ -51,7 +51,7 @@ SP.setCssProps = P.setCssProps;
 (Node.prototype as any).instanceOf = function (type: any) {
   return this instanceof type;
 };
-(DocumentFragment.prototype as any).appendText = function (t: string) {
+(Node.prototype as any).appendText = function (t: string) {
   this.appendChild(document.createTextNode(t));
 };
 // 全局辅助函数与 activeDocument / activeWindow

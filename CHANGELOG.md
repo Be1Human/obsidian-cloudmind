@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.8
+
+- Fixed: typing on a selected topic wiped its text and dropped the first key. Typing now keeps the text and appends what you type.
+- Fixed: `F2` did not start editing (Obsidian's own F2 hotkey took it).
+- Fixed: `Esc` did not leave the edit box, so a following `Backspace` deleted characters instead of the topic. `Esc` now cancels the edit and restores the text; `Enter` confirms.
+- Dragging: the drop preview is only redrawn when the drop position changes (about 15× less work while dragging), and small jitter at a zone boundary no longer makes the preview jump.
+
 ## 0.4.7
 
 - Topics no longer show the `[[ ]]` brackets of wikilinks: `[[Note]]` is shown as an underlined "Note", `[[Note|alias]]` as "alias", and `[[Note#Heading]]` as "Note > Heading", like Obsidian's reading view. Editing a topic still shows the raw link, and the file keeps the standard `[[Note]]`.

@@ -280,6 +280,11 @@ export class CloudMindView extends TextFileView {
     // 中文输入法开着时，Windows 上 Backspace / Delete 的 keyCode 常常是 229（“输入法处理中”），
     // 库会把它当成“开始打字”而进入文字编辑，而不是删除节点。放在捕获阶段，抢在库之前处理。
     this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => this.onDeleteKey(e), true);
+    // 编辑节点文字时按 Esc：取消这次编辑（恢复原文字）并退出编辑，节点保持选中。库本身不处理 Esc，
+    // 编辑框会一直开着，之后按 Backspace 删的是文字而不是节点
+    this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => this.onEscapeWhileEditing(e), true);
+    // F2 编辑 / 选中节点直接打字：抢在 Obsidian 的快捷键（F2 = 重命名文件）和库的处理之前
+    this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => this.onTypeToEdit(e), true);
 
     this.ro = new ResizeObserver(() => this.handleResize());
     this.ro.observe(this.stageEl);
@@ -509,8 +514,8 @@ export class CloudMindView extends TextFileView {
       // 库自带的滚轮处理对触控板很不友好（会跳），换成我们自己的平滑实现
       customHandleMousewheel: this.wheel.handle,
       mouseScaleCenterUseMousePosition: true,
-      enableAutoEnterTextEditWhenKeydown: true, // 选中节点直接打字即开始编辑
-      autoEmptyTextWhenKeydownEnterEdit: true,
+      enableAutoEnterTextEditWhenKeydown: true, // 选中节点直接打字即开始编辑（英文 / 数字由 onTypeToEdit 处理，这里只剩输入法按键）
+      autoEmptyTextWhenKeydownEnterEdit: false, // 不清空原文字：误碰一个键不会丢内容
       enableDblclickBackToRootNode: false,
       useLeftKeySelectionRightKeyDrag: false,
       createNewNodeBehavior: "default",
@@ -605,6 +610,64 @@ export class CloudMindView extends TextFileView {
     mm.keyCommand.addShortcut("Escape", () => {
       if (this.popEl) return this.closePopover();
       if (!this.editing && this.hasSel()) mm.execCommand("CLEAR_ACTIVE_NODE");
+    });
+  }
+
+  private onEscapeWhileEditing(e: KeyboardEvent) {
+    if (e.key !== "Escape" || e.isComposing || !this.mm) return;
+    const te = this.mm.renderer.textEdit;
+    if (!te?.isShowTextEdit?.()) return;
+    // [[ 笔记列表开着时，Esc 先关列表
+    if (this.wiki?.isOpen) return;
+    const t = e.target as HTMLElement | null;
+    if (!t?.closest?.(".smm-node-edit-wrap") && !this.canHandleKey(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    // 取消：把编辑框内容恢复成原文字再关闭
+    const box: HTMLElement | null = te.textEditNode ?? null;
+    const node = te.currentNode;
+    if (box && node) {
+      const lines = String(node.getData("text") ?? "").split("\n");
+      box.empty();
+      lines.forEach((ln, i) => {
+        if (i > 0) box.appendChild(box.ownerDocument.createElement("br"));
+        box.appendText(ln);
+      });
+    }
+    te.hideEditTextBox();
+  }
+
+  /** F2 进入编辑；选中单个节点时直接打英文 / 数字：保留原文字、把这个字接在后面 */
+  private onTypeToEdit(e: KeyboardEvent) {
+    if (!this.mm || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
+    const te = this.mm.renderer.textEdit;
+    if (te?.isShowTextEdit?.() || this.editing || this.popEl || this.wiki?.isOpen) return;
+    const list = this.sel();
+    if (list.length !== 1) return;
+    const isF2 = e.key === "F2";
+    // 可打印的单个字符；输入法（key = Process / keyCode 229）交给库处理，避免第一个字母变成拼音
+    const ch = e.key.length === 1 && e.key !== " " && e.key !== "/" && e.key !== "\\" ? e.key : "";
+    if (!isF2 && !ch) return;
+    const t = e.target as HTMLElement | null;
+    // 焦点在其它输入框 / 弹窗里时不接管
+    const doc = this.contentEl.ownerDocument;
+    if (t && t !== doc.body && !this.contentEl.contains(t)) return;
+    if (!this.canHandleKey(e)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const node = list[0];
+    void Promise.resolve(te.show({ node, isFromKeyDown: !isF2 })).then(() => {
+      const box: HTMLElement | null = te.textEditNode ?? null;
+      if (!box || !ch) return;
+      box.appendText(ch);
+      // 光标放到末尾
+      const range = doc.createRange();
+      range.selectNodeContents(box);
+      range.collapse(false);
+      const sel = (doc.defaultView ?? window).getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      box.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: ch }));
     });
   }
 

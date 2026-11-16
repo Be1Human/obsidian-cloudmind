@@ -447,6 +447,38 @@ cloudmind: true
   await page.keyboard.press("Escape");
   await page.screenshot({ path: path.join(dir, "ui-icons.png") });
 }
+// ---------- 18. 直接打字 / F2 / Esc / Backspace 的组合 ----------
+{
+  const MD = "---\ncloudmind: true\n---\n# 根\n## 甲\n- 甲1\n## 乙\n";
+  const load = async () => { await page.evaluate((t) => window.__view.setViewData(t, true), MD); await page.waitForTimeout(600); };
+  const pick = (nm) => page.evaluate((nm) => { let f; const w = (x) => { if (x.getData("text") === nm) f = x; x.children.forEach(w); }; w(window.mm().renderer.root); window.mm().execCommand("CLEAR_ACTIVE_NODE"); f.active(); }, nm);
+  const tree = () => page.evaluate(() => { const s = (n) => n.getData("text") + (n.children.length ? "(" + n.children.map(s).join(",") + ")" : ""); return s(window.mm().renderer.root); });
+  const editing = () => page.evaluate(() => window.mm().renderer.textEdit.isShowTextEdit());
+  await page.evaluate(() => document.activeElement?.blur?.());
+
+  await load(); await pick("甲1"); await page.waitForTimeout(150);
+  await page.keyboard.type("ab"); await page.waitForTimeout(200);
+  ok("typing on a selected topic keeps its text and appends", (await page.evaluate(() => document.querySelector(".smm-node-edit-wrap")?.innerText)) === "甲1ab");
+  await page.keyboard.press("Enter"); await page.waitForTimeout(400);
+  ok("Enter commits the typed text without adding a topic", (await tree()) === "根(甲(甲1ab),乙)", await tree());
+
+  await load(); await pick("甲1"); await page.waitForTimeout(150);
+  await page.keyboard.type("zz"); await page.keyboard.press("Escape"); await page.waitForTimeout(400);
+  ok("Esc cancels the edit and restores the text", (await tree()) === "根(甲(甲1),乙)" && !(await editing()), await tree());
+  await page.keyboard.press("Backspace"); await page.waitForTimeout(400);
+  ok("Backspace after Esc deletes the topic", (await tree()) === "根(甲,乙)", await tree());
+
+  await load(); await pick("乙"); await page.waitForTimeout(150);
+  await page.keyboard.press("F2"); await page.waitForTimeout(300);
+  ok("F2 enters editing with the full text", (await editing()) && (await page.evaluate(() => document.querySelector(".smm-node-edit-wrap")?.innerText)) === "乙");
+  await page.keyboard.press("Escape"); await page.waitForTimeout(300);
+  await page.keyboard.press("Backspace"); await page.waitForTimeout(400);
+  ok("F2 → Esc → Backspace deletes the topic", (await tree()) === "根(甲(甲1))", await tree());
+
+  await load(); await pick("甲1"); await page.waitForTimeout(150);
+  await page.keyboard.press("/"); await page.waitForTimeout(300);
+  ok("'/' still folds instead of starting an edit", !(await editing()));
+}
 console.log("page errors:", errors.length ? errors : "none");
 ok("no page errors", errors.length === 0);
 await browser.close();

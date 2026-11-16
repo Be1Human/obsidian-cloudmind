@@ -38,11 +38,12 @@ function siblingsOf(drag: any, node: any, layout: string): any[] {
   });
 }
 
-/** 选出落点：目标节点 + 位置。找不到返回 null */
-export function pickDropTarget(drag: any, layout: string): { node: any; zone: Zone } | null {
+/** 选出落点：目标节点 + 位置。找不到返回 null。prev = 上一次的落点，用来做“粘滞”，避免在交界处来回跳 */
+export function pickDropTarget(drag: any, layout: string, prev?: { node: any; zone: Zone } | null): { node: any; zone: Zone } | null {
   const x: number = drag.mouseMoveX;
   const y: number = drag.mouseMoveY;
   const scale: number = drag.drawTransform?.scaleY ?? 1;
+  const STICK = 6 * Math.max(0.5, scale); // 交界处的粘滞距离（屏幕像素）
   let best: { node: any; zone: Zone; score: number } | null = null;
 
   for (const node of drag.nodeList as any[]) {
@@ -64,17 +65,27 @@ export function pickDropTarget(drag: any, layout: string): { node: any; zone: Zo
       top -= prev ? Math.max(0, (r.top - prev.bottom) / 2) : free;
       bottom += next ? Math.max(0, (next.top - r.bottom) / 2) : free;
     }
+    const isPrev = !!prev && prev.node === node;
+    if (isPrev) {
+      top -= STICK;
+      bottom += STICK;
+    }
     if (y < top || y > bottom) continue;
 
     let zone: Zone = "child";
     if (!node.isRoot) {
       const band = Math.max(h * EDGE_RATIO, 5);
-      if (y < r.top + band) zone = "before";
-      else if (y > r.bottom - band) zone = "after";
+      // 上一次在这个节点的某个区域：边界向外让一点，轻微抖动不切换（矮节点让得少，不能吃掉上下区域）
+      const s = Math.min(STICK, band * 0.25);
+      const pz = isPrev && prev ? prev.zone : null;
+      const upper = r.top + band + (pz === "before" ? s : pz === "child" ? -s : 0);
+      const lower = r.bottom - band - (pz === "after" ? s : pz === "child" ? -s : 0);
+      if (y < upper) zone = "before";
+      else if (y > lower) zone = "after";
     }
     const cy = (r.top + r.bottom) / 2;
-    // 横向对准优先，其次离节点中心近
-    const score = dx * 4 + Math.abs(y - cy);
+    // 横向对准优先，其次离节点中心近；上一次的目标略微优先
+    const score = dx * 4 + Math.abs(y - cy) - (isPrev ? STICK * 2 : 0);
     if (!best || score < best.score) best = { node, zone, score };
   }
   return best ? { node: best.node, zone: best.zone } : null;
@@ -101,13 +112,22 @@ export function improveDrag(Drag: any) {
   const origCheck = proto.checkOverlapNode;
   const origBind = proto.bindEvent;
   const origMouseup = proto.onMouseup;
+  const origReset = proto.reset;
+
+  proto.reset = function (this: any, ...args: unknown[]) {
+    this.cmLastPick = undefined;
+    return origReset.apply(this, args);
+  };
 
   /** 立即判定一次落点 */
   proto.cmCheckNow = function (this: any) {
     if (!this.drawTransform || !this.placeholder || !this.nodeList) return;
     const layout: string = this.mindMap.opt.layout;
     if (!VERTICAL_LAYOUTS.has(layout)) return origCheck.call(this);
-    const pick = pickDropTarget(this, layout);
+    const last = this.cmLastPick as { node: any; zone: Zone } | null | undefined;
+    const pick = pickDropTarget(this, layout, last);
+    // 落点没变：不重画预览框和连线（每次重画都要重建 SVG，拖动时会掉帧）
+    if (last !== undefined && (pick === last || (pick && last && pick.node === last.node && pick.zone === last.zone))) return;
     const mx = this.mouseMoveX;
     const my = this.mouseMoveY;
     if (pick) {

@@ -114,6 +114,27 @@ if (!LEGACY) {
   const rb = await rectOf("乙");
   await drag("戊", { x: rb.left + rb.width / 2, y: rb.top + rb.height / 2 }, { hold: 400 });
   ok("organization chart: drop on a node still makes a child", /乙\(戊\)/.test(await tree()), await tree());
+  // 交界处轻微抖动：预览不应来回跳，也不应每帧重画
+  {
+    await page.evaluate((t) => window.__view.setViewData(t, true), MD("logicalStructure"));
+    await page.waitForTimeout(700);
+    const a = await rectOf("戊"), r = await rectOf("乙");
+    await page.evaluate(() => {
+      const d = window.mm().drag; window.__ph = 0;
+      const o = d.setPlaceholderRect.bind(d); d.setPlaceholderRect = (x) => { window.__ph++; return o(x); };
+    });
+    await page.mouse.move(a.left + a.width / 2, a.top + a.height / 2);
+    await page.mouse.down();
+    const by = r.top + r.height * 0.3; // “插到上面”和“子节点”的交界
+    await page.mouse.move(r.left + r.width / 2, by, { steps: 10 });
+    await page.waitForTimeout(100);
+    const before = await page.evaluate(() => window.__ph);
+    for (let i = 0; i < 40; i++) { await page.mouse.move(r.left + r.width / 2 + (i % 3), by + (i % 2 ? 1.5 : -1.5)); await page.waitForTimeout(16); }
+    const redraws = (await page.evaluate(() => window.__ph)) - before;
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    ok("jitter at a zone boundary does not flicker the preview", redraws <= 2, `redraws=${redraws}`);
+  }
   console.log("page errors:", errors.length ? errors : "none");
   ok("no page errors", errors.length === 0);
   console.log(failed === 0 ? "\nDRAG PASSED" : `\n${failed} FAILED`);

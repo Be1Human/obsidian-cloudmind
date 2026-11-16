@@ -126,7 +126,8 @@ cloudmind-theme: cloudBox
 | Key | Action |
 |---|---|
 | `Tab` / `Enter` / `Shift+Tab` | Child / sibling / parent topic |
-| Typing or `F2` | Edit topic |
+| Typing or `F2` | Edit topic (typing keeps the text and appends) |
+| `Esc` while editing | Cancel the edit (restores the text) |
 | `Del` / `Backspace` | Delete topic with children |
 | `Shift+Backspace` | Delete only the topic |
 | `/` | Fold / unfold |
