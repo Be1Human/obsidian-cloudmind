@@ -3,10 +3,63 @@ import { CloudMindView, VIEW_TYPE } from "./view";
 import { FM_MARK, LEGACY_MARKS, hasMindmapMark, newMindmapText } from "./mdTree";
 import { CloudMindSettings, DEFAULT_SETTINGS } from "./settings";
 import { CloudMindSettingTab } from "./settingTab";
+import { describeEl, keyLog } from "./keyLog";
 
 
 export default class CloudMindPlugin extends Plugin {
   settings: CloudMindSettings = { ...DEFAULT_SETTINGS };
+
+  /**
+   * 删除键诊断：在所有导图之前（捕获阶段、最先注册）看到每次 Backspace / Delete，
+   * 等各导图处理完后检查结果。导图显示着、选中了节点，却既没删节点也不是在编辑框里删字 → 记一条到
+   * .obsidian/plugins/cloudmind/delete-debug.log。
+   */
+  private setupDeleteDiagnostics() {
+    const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    const path = normalizePath(`${dir}/delete-debug.log`);
+    const adapter = this.app.vault.adapter;
+    void adapter
+      .exists(path)
+      .then((ok) => (ok ? adapter.read(path) : ""))
+      .catch(() => "")
+      .then((existing) => keyLog.setWriter((text) => adapter.write(path, text), existing));
+    this.register(() => keyLog.setWriter(null));
+    this.registerDomEvent(
+      window,
+      "keydown",
+      (e: KeyboardEvent) => {
+        const isDel = e.code === "Backspace" || e.code === "Delete" || e.key === "Backspace" || e.key === "Delete";
+        if (!isDel || e.altKey) return;
+        keyLog.begin();
+        const raw = {
+          key: e.key,
+          code: e.code,
+          composing: e.isComposing,
+          shift: e.shiftKey,
+          ctrl: e.ctrlKey || e.metaKey,
+          target: describeEl(e.target as Element),
+        };
+        window.setTimeout(() => {
+          const views = this.app.workspace
+            .getLeavesOfType(VIEW_TYPE)
+            .map((l) => l.view)
+            .filter((v): v is CloudMindView => v instanceof CloudMindView);
+          const shown = views.filter((v) => v.isShownNow());
+          if (!shown.length) return;
+          const decisions = keyLog.decisions();
+          const handled = decisions.some((d) => d.result === "deleted" || d.result === "text" || d.result === "composing");
+          const states = views.map((v) => v.debugState());
+          const someoneSelected = states.some((s) => s.shown && Array.isArray(s.sel) && s.sel.length > 0);
+          // 在笔记编辑器 / 输入框里正常打字删字，不记
+          const typingElsewhere = /contenteditable|^input|^textarea/.test(raw.target) && !raw.target.includes("smm-node-edit-wrap");
+          if (!handled && someoneSelected && !typingElsewhere) {
+            keyLog.miss({ raw, decisions, views: states, version: this.manifest.version });
+          }
+        }, 0);
+      },
+      true
+    );
+  }
 
   /** 用户手动切到文本视图的标签页（不再自动切回导图） */
   private textLeaves = new WeakMap<WorkspaceLeaf, string>();
@@ -17,6 +70,7 @@ export default class CloudMindPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    this.setupDeleteDiagnostics();
     this.registerView(VIEW_TYPE, (leaf) => new CloudMindView(leaf, this));
     this.addSettingTab(new CloudMindSettingTab(this.app, this));
 

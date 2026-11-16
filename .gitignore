@@ -25,3 +25,4 @@ test/.entry.*
 test/.captured.json
 docs/images/obsidian/_*.png
 test/.gh-*.png
+delete-debug.log

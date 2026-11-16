@@ -365,9 +365,12 @@ cloudmind: true
   await page.keyboard.type("庚"); await page.keyboard.press("Enter"); await page.waitForTimeout(300);
   ok("...and the edited text is saved", (await names()).includes("庚"), await names());
 
-  // 输入法组字过程中的退格（删拼音）不能删节点
-  await fresh(); await selNode("戊"); await press({ key: "Process", code: "Backspace", keyCode: 229, isComposing: true }); await page.waitForTimeout(300);
+  // 输入法组字过程中的退格（删拼音）不能删节点。真实组字一定发生在编辑框里（焦点在 body 上时的“组字中”是卡住的状态，见第 20 节）
+  await fresh(); await selNode("戊"); await page.keyboard.press("F2"); await page.waitForTimeout(300);
+  await page.evaluate(() => document.querySelector(".smm-node-edit-wrap").dispatchEvent(new KeyboardEvent("keydown", { key: "Process", code: "Backspace", keyCode: 229, isComposing: true, bubbles: true, cancelable: true })));
+  await page.waitForTimeout(300);
   ok("Backspace while composing (isComposing) is ignored", (await names()).includes("戊"), await names());
+  await page.keyboard.press("Escape"); await page.waitForTimeout(200);
 
   // 选择列表打开时，退格交给列表 / 编辑框，不删节点
   await fresh(); await selNode("己"); await page.keyboard.press("F2"); await page.waitForTimeout(250);
@@ -519,6 +522,39 @@ cloudmind: true
   await page.keyboard.press("F2"); await page.waitForTimeout(300);
   await page.keyboard.press("End"); await page.keyboard.press("Backspace"); await page.waitForTimeout(200);
   ok("Backspace inside the edit box deletes a character, not the topic", (await page.evaluate(() => document.querySelector(".smm-node-edit-wrap")?.innerText)) === "甲" && (await has("甲2")));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(200);
+}
+// ---------- 20. 输入法“组字中”标记卡住时，焦点不在输入框里仍能删 ----------
+{
+  await page.evaluate((t) => window.__view.setViewData(t, true), "---\ncloudmind: true\n---\n# 根\n## 甲\n- 甲1\n- 甲2\n## 乙\n");
+  await page.waitForTimeout(600);
+  const pick = (nm) => page.evaluate((nm) => { let f; const w = (x) => { if (x.getData("text") === nm) f = x; x.children.forEach(w); }; w(window.mm().renderer.root); window.mm().execCommand("CLEAR_ACTIVE_NODE"); f.active(); }, nm);
+  const has = (nm) => page.evaluate((nm) => { let f = false; const w = (x) => { if (x.getData("text") === nm) f = true; x.children.forEach(w); }; w(window.mm().renderer.root); return f; }, nm);
+  const fire = (target) => page.evaluate((target) => {
+    const el = target === "body" ? document.body : document.querySelector(".smm-node-edit-wrap");
+    el.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", code: "Backspace", keyCode: 229, isComposing: true, bubbles: true, cancelable: true }));
+  }, target);
+  await pick("甲1"); await page.evaluate(() => document.activeElement?.blur?.());
+  await fire("body"); await page.waitForTimeout(400);
+  ok("stale IME 'composing' flag with focus on body still deletes", !(await has("甲1")));
+  await pick("甲2"); await page.keyboard.press("F2"); await page.waitForTimeout(300);
+  await fire("box"); await page.waitForTimeout(300);
+  ok("real composition inside the edit box is left alone", await has("甲2"));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(200);
+}
+
+// ---------- 21. 双击节点时快捷条不会挡住第二下点击 ----------
+{
+  await page.evaluate((t) => window.__view.setViewData(t, true), "---\ncloudmind: true\n---\n# 根\n## 甲\n## 乙\n");
+  await page.waitForTimeout(600);
+  const r = await page.evaluate(() => { const n = window.mm().renderer.root.children[0]; const q = n.getRectInSvg(); const c = document.querySelector(".cm-canvas").getBoundingClientRect(); return { x: c.left + q.left + q.width / 2, y: c.top + q.top + q.height / 2 }; });
+  await page.mouse.click(r.x, r.y);
+  await page.waitForTimeout(80);
+  ok("quick bar waits for the double-click window", !(await page.evaluate(() => document.querySelector(".cm-nodebar")?.classList.contains("is-show"))));
+  await page.waitForTimeout(600);
+  ok("quick bar appears after the delay", await page.evaluate(() => document.querySelector(".cm-nodebar")?.classList.contains("is-show")));
+  await page.mouse.dblclick(r.x, r.y); await page.waitForTimeout(400);
+  ok("double-click enters editing (no dialog opened)", (await page.evaluate(() => window.mm().renderer.textEdit.isShowTextEdit())) && !(await page.evaluate(() => !!document.querySelector(".modal"))));
   await page.keyboard.press("Escape"); await page.waitForTimeout(200);
 }
 console.log("page errors:", errors.length ? errors : "none");

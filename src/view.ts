@@ -15,6 +15,7 @@ import nodeCreateContents from "simple-mind-map/src/core/render/node/nodeCreateC
 import icons from "simple-mind-map/src/svg/icons.js";
 import { readableTextOn } from "./contrast";
 import { improveDrag } from "./dragFix";
+import { describeEl, keyLog } from "./keyLog";
 import { FM_KEYS, ParsedDoc, buildFmUpdates, parseDoc, pickFm, serializeDoc } from "./mdTree";
 import { FILL_COLORS, LAYOUTS, RAINBOW, TEXT_COLORS, THEMES, defineThemes, themeDef, themePreview } from "./themes";
 import { POS_LABELS, ToolbarPos } from "./settings";
@@ -61,6 +62,12 @@ function setupMindMap() {
 }
 
 /* ------------------------------------------------------------ 小工具 */
+
+/** 焦点是否在能输入文字的地方（输入框、多行文本、可编辑区域，含节点编辑框） */
+function isEditableTarget(t: HTMLElement | null): boolean {
+  if (!t) return false;
+  return t.instanceOf?.(HTMLInputElement) || t.instanceOf?.(HTMLTextAreaElement) || t.isContentEditable === true;
+}
 
 function promptModal(
   app: App,
@@ -312,6 +319,7 @@ export class CloudMindView extends TextFileView {
     if (this.nbRaf) window.cancelAnimationFrame(this.nbRaf);
     if (this.stRaf) window.cancelAnimationFrame(this.stRaf);
     if (this.resizeTimer !== null) window.clearTimeout(this.resizeTimer);
+    if (this.nbDelay !== null) window.clearTimeout(this.nbDelay);
     this.destroyMindMap();
   }
 
@@ -340,8 +348,9 @@ export class CloudMindView extends TextFileView {
     return text;
   }
 
-  setViewData(data: string, _clear: boolean) {
+  setViewData(data: string, clear: boolean) {
     if (this.mm && data === this.lastText) return;
+    keyLog.note(`setViewData ${this.file?.basename ?? "?"} clear=${clear} rebuild=${!!this.mm} editBox=${this.editBoxShown()}`);
     this.lastText = data;
     this.touched = false;
     this.setSaveState("clean");
@@ -569,12 +578,14 @@ export class CloudMindView extends TextFileView {
     });
     mm.on("afterExecCommand", () => this.scheduleStatus());
     mm.on("before_show_text_edit", () => {
+      keyLog.note("edit-start " + (this.file?.basename ?? "?"));
       this.editing = true;
       this.closePopover();
       this.hideNodeBar();
       this.renderStatus();
     });
     mm.on("hide_text_edit", () => {
+      keyLog.note("edit-end " + (this.file?.basename ?? "?"));
       this.editing = false;
       this.renderStatus();
       this.scheduleNodeBar();
@@ -603,7 +614,10 @@ export class CloudMindView extends TextFileView {
         this.showCanvasMenu(e);
       }
     });
+    mm.on("node_mousedown", () => (this.lastNodeDown = performance.now()));
+    mm.on("node_dblclick", (node: any) => keyLog.note("dblclick " + String(node?.getData?.("text") ?? "").slice(0, 10)));
     mm.on("node_click", (node: any, e: MouseEvent) => {
+      keyLog.note("click " + String(node?.getData?.("text") ?? "").slice(0, 10));
       // Ctrl/Cmd + 点击：打开节点里引用的笔记（和 Obsidian 编辑器一致）
       if (e && (e.ctrlKey || e.metaKey)) this.openNodeLinks(node, e, true);
     });
@@ -628,6 +642,7 @@ export class CloudMindView extends TextFileView {
    */
   private endTextEdit(restore: boolean) {
     const te = this.mm?.renderer?.textEdit;
+    keyLog.note(`endTextEdit restore=${restore} flag=${!!te?.isShowTextEdit?.()} editing=${this.editing} box=${this.editBoxShown()}`);
     if (te) {
       const box: HTMLElement | null = te.textEditNode ?? null;
       const node = te.currentNode;
@@ -685,7 +700,7 @@ export class CloudMindView extends TextFileView {
 
   /** F2 进入编辑；选中单个节点时直接打英文 / 数字：保留原文字、把这个字接在后面 */
   private onTypeToEdit(e: KeyboardEvent) {
-    if (!this.mm || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!this.mm || (e.isComposing && isEditableTarget(e.target as HTMLElement | null)) || e.altKey || e.ctrlKey || e.metaKey) return;
     const te = this.mm.renderer.textEdit;
     if (this.editBoxShown() || (this.popEl && this.popEl.isConnected) || this.wiki?.isOpen) return;
     // 内部标记说“在编辑”但界面上没有编辑框：标记卡住了，复位
@@ -704,6 +719,7 @@ export class CloudMindView extends TextFileView {
     e.preventDefault();
     e.stopImmediatePropagation();
     const node = list[0];
+    keyLog.note(isF2 ? "F2-edit" : "type-to-edit");
     void Promise.resolve(te.show({ node, isFromKeyDown: !isF2 })).then(() => {
       const box: HTMLElement | null = te.textEditNode ?? null;
       if (!box || !ch) return;
@@ -722,22 +738,89 @@ export class CloudMindView extends TextFileView {
   private onDeleteKey(e: KeyboardEvent) {
     const isDel = e.code === "Backspace" || e.code === "Delete" || e.key === "Backspace" || e.key === "Delete";
     if (!isDel || !this.mm || e.altKey) return;
-    // 组字过程中（拼音还没上屏）的退格是删拼音，不能当成删节点
-    if (e.isComposing) return;
+    const name = this.file?.basename ?? "?";
+    const why = (result: string, detail?: Record<string, unknown>) => keyLog.decide({ view: name, result, detail });
     const t = e.target as HTMLElement | null;
+    const targetEditable = isEditableTarget(t);
+    // 组字过程中（拼音还没上屏）的退格是删拼音，不能当成删节点。
+    // 但只有焦点在能输入的地方才可能在组字：焦点在 body 上时还带着“组字中”标记，说明输入法状态卡住了，忽略它
+    if (e.isComposing && targetEditable) return why("composing");
+    if (e.isComposing) keyLog.note("stale-composing ignored");
     // 光标真的在一个显示着的编辑框里：这是在删文字
-    if (t?.closest?.(".smm-node-edit-wrap") && this.editBoxShown()) return;
+    if (t?.closest?.(".smm-node-edit-wrap") && this.editBoxShown()) return why("text");
     // 光标在弹层里的输入框（比如颜色选择）：交给它
-    if (this.popEl?.isConnected && t && this.popEl.contains(t) && t.matches?.("input, textarea")) return;
-    if (!this.canHandleKey(e) || !this.hasSel()) return;
+    if (this.popEl?.isConnected && t && this.popEl.contains(t) && t.matches?.("input, textarea")) return why("popover-input");
+    if (!this.isShownNow()) return why("hidden");
+    const reason = this.keyRejectReason(e);
+    if (reason) return why(reason);
+    if (!this.hasSel()) return why("no-selection");
     e.preventDefault();
     e.stopImmediatePropagation();
     // 删除前把可能残留的状态复位：没有焦点的编辑框、弹层、笔记列表、卡住的“编辑中”标记
     const te = this.mm.renderer.textEdit;
-    if (te?.isShowTextEdit?.() || this.editing || this.editBoxShown()) this.endTextEdit(false);
+    const stale = { textEdit: !!te?.isShowTextEdit?.(), editing: this.editing, box: this.editBoxShown(), pop: !!this.popEl, wiki: !!this.wiki?.isOpen };
+    if (stale.textEdit || stale.editing || stale.box) this.endTextEdit(false);
     if (this.popEl) this.closePopover();
     this.wiki?.close();
+    const before = this.countNodes();
+    const target = this.sel().map((n: any) => String(n.getData?.("text") ?? "").slice(0, 12));
+    const uids: string[] = this.sel()
+      .filter((n: any) => !n.isRoot)
+      .map((n: any) => String(n.getData?.("uid") ?? ""))
+      .filter(Boolean);
     this.deleteSelection(e.shiftKey);
+    why("deleted", { before, sel: target, stale });
+    // 删除后导图是异步重绘的：等重绘完再核对，被删的节点还在才算“没删掉”
+    window.setTimeout(() => {
+      if (!this.mm || !uids.length) return;
+      const alive = new Set<string>();
+      const walk = (x: any) => {
+        alive.add(String(x?.getData?.("uid") ?? ""));
+        (x?.children ?? []).forEach(walk);
+      };
+      walk(this.mm.renderer.root);
+      if (!uids.some((u) => alive.has(u))) return;
+      keyLog.miss({ raw: { key: e.key, code: e.code }, decisions: [{ view: name, result: "delete-noop", detail: { before, after: this.countNodes(), sel: target, stale } }], views: [this.debugState()], version: this.plugin.manifest.version });
+    }, 250);
+  }
+
+  private countNodes(): number {
+    let n = 0;
+    const walk = (x: any) => {
+      n++;
+      (x?.children ?? []).forEach(walk);
+    };
+    if (this.mm?.renderer?.root) walk(this.mm.renderer.root);
+    return n;
+  }
+
+  /** 这个导图此刻是否显示在屏幕上（后台标签页、被折叠的面板都不算） */
+  isShownNow(): boolean {
+    const el = this.contentEl;
+    return el.isConnected && el.getClientRects().length > 0 && el.offsetParent !== null;
+  }
+
+  /** 诊断用：当前状态快照 */
+  debugState(): Record<string, unknown> {
+    const te = this.mm?.renderer?.textEdit;
+    const doc = this.contentEl.ownerDocument;
+    return {
+      file: this.file?.path,
+      shown: this.isShownNow(),
+      active: this.app.workspace.getActiveViewOfType(CloudMindView) === this,
+      mouseIn: this.mouseIn,
+      hasMM: !!this.mm,
+      nodes: this.countNodes(),
+      sel: this.sel().map((n: any) => String(n.getData?.("text") ?? "").slice(0, 12)),
+      editing: this.editing,
+      textEdit: !!te?.isShowTextEdit?.(),
+      editBox: this.editBoxShown(),
+      pop: this.popEl ? (this.popEl.isConnected ? "open" : "detached") : null,
+      wiki: !!this.wiki?.isOpen,
+      dragging: this.dragging,
+      focus: describeEl(doc.activeElement),
+      recent: keyLog.recentEvents(8),
+    };
   }
 
   /**
@@ -759,16 +842,25 @@ export class CloudMindView extends TextFileView {
   }
 
   private canHandleKey(e: KeyboardEvent): boolean {
+    return this.keyRejectReason(e) === null;
+  }
+
+  /** 这个按键不归这个导图处理的原因；null = 归它 */
+  private keyRejectReason(e: KeyboardEvent): string | null {
     const t = e.target as HTMLElement | null;
-    if (t?.closest?.(".modal-container, .menu, .suggestion-container, .prompt, .cm-popover")) return false;
+    const blocker = t?.closest?.(".modal-container, .menu, .suggestion-container, .prompt, .cm-popover");
+    if (blocker) return "focus-in:" + describeEl(blocker);
     const editing = !!t?.closest?.(".smm-node-edit-wrap");
     if (
       !editing &&
       (t?.instanceOf?.(HTMLInputElement) || t?.instanceOf?.(HTMLTextAreaElement) || (t && t.isContentEditable))
     )
-      return false;
-    if (editing) return true;
-    return this.app.workspace.getActiveViewOfType(CloudMindView) === this || this.mouseIn;
+      return "focus-in:" + describeEl(t);
+    if (editing) return null;
+    if (this.app.workspace.getActiveViewOfType(CloudMindView) === this) return null;
+    // 鼠标停在这个导图上（且导图确实显示着）也算
+    if (this.mouseIn && this.isShownNow()) return null;
+    return "not-active";
   }
 
   /* ---------- 双链：引用 / 高亮 / 打开 ---------- */
@@ -1163,8 +1255,22 @@ export class CloudMindView extends TextFileView {
     });
   }
 
+  private lastNodeDown = 0;
+  private nbDelay: number | null = null;
+
   private updateNodeBar() {
     const bar = this.nodebarEl;
+    // 刚按下节点：等过了双击的时间再出快捷条，免得第二下点击落在快捷条的按钮上（比如弹出“链接”对话框）
+    const since = performance.now() - this.lastNodeDown;
+    if (since < 420) {
+      this.hideNodeBar();
+      if (this.nbDelay === null)
+        this.nbDelay = window.setTimeout(() => {
+          this.nbDelay = null;
+          this.scheduleNodeBar();
+        }, 430 - since);
+      return;
+    }
     const list = this.sel();
     if (!this.mm || !this.plugin.settings.showNodeBar || (this.editing && this.editBoxShown()) || this.dragging || list.length !== 1) {
       return this.hideNodeBar();
@@ -1212,9 +1318,13 @@ export class CloudMindView extends TextFileView {
           const h = Math.min(c.y + bh, o.top + o.height) - Math.max(c.y, o.top);
           if (w > 0 && h > 0) overlap += w * h;
         }
+        // 盖住选中的节点本身：重罚（会挡住双击 / 拖动）
+        const ow = Math.min(c.x + bw, r.left + r.width) - Math.max(c.x, r.left);
+        const oh = Math.min(c.y + bh, r.top + r.height) - Math.max(c.y, r.top);
+        const self = ow > 0 && oh > 0 ? ow * oh * 20 : 0;
         // 被夹回画布边缘、离节点太远的候选略微扣分
         const far = Math.abs(c.y + bh / 2 - nodeCenterY) > r.height / 2 + bh + gap * 3 ? 50 : 0;
-        return overlap + far;
+        return overlap + self + far;
       };
       const scores = cands.map(scoreOf);
       let bestScore = Infinity;
@@ -1354,6 +1464,7 @@ export class CloudMindView extends TextFileView {
   /* ---------- 弹层 ---------- */
 
   closePopover() {
+    if (this.popEl) keyLog.note("popover-close");
     this.popOff?.();
     this.popOff = null;
     this.popEl?.remove();
@@ -1362,6 +1473,7 @@ export class CloudMindView extends TextFileView {
   }
 
   private openPopover(anchor: HTMLElement, cls: string, build: (el: HTMLElement) => void) {
+    keyLog.note("popover-open " + cls);
     if (this.popAnchor === anchor) return this.closePopover(); // 再点一次收起
     this.closePopover();
     const doc = this.contentEl.ownerDocument;

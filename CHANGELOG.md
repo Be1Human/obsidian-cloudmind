@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.10
+
+- Fixed: `Backspace` / `Delete` could stop working after typing Chinese (or another IME language) for a while. If the input method's "composing" state got stuck, every later key press was treated as editing pinyin and ignored. The composing state is now only respected when the cursor is actually in a text field.
+- Fixed: double-clicking a topic could hit the quick bar that had just appeared after the first click (for example opening the "hyperlink" dialog). The quick bar now waits until the double-click window has passed and avoids covering the selected topic.
+- Diagnostics: when a delete key press on a selected topic is not handled, the reason and the recent events are written to `.obsidian/plugins/cloudmind/delete-debug.log` (local only, last 300 entries) to help track down any remaining cases.
+
 ## 0.4.9
 
 - Fixed: `Backspace` / `Delete` could stop deleting topics until the map was reopened. The plugin relied on internal "editing" / "popover open" flags that could get stuck (for example when the note was changed by Sync or in another tab while a topic was being edited, which also left an orphan edit box on screen). Deleting now checks what is actually on screen: it only types into the edit box when the cursor really is in a visible edit box; otherwise it closes any leftover edit box or popover and deletes the selected topic.
