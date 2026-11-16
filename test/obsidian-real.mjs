@@ -374,6 +374,96 @@ if (MODE === "soak") {
   await app.close();
   process.exit(0);
 }
+// 截图场景：新建子主题（Enter / Tab）后直接按 Backspace，以及点一下别处再按
+if (MODE === "newnode") {
+  const P = "多图/启动耗时.md";
+  let k = 0;
+  const open = async () => {
+    k++;
+    await win.keyboard.press("Escape");
+    await win.evaluate(async ([P, k]) => {
+      const text = await window.app.vault.read(window.app.vault.getAbstractFileByPath(P));
+      const p = `多图/新建-${k}.md`; await window.app.vault.create(p, text);
+      const keep = window.app.workspace.getLeaf(true); await keep.openFile(window.app.vault.getAbstractFileByPath(p));
+      ["markdown", "cloudmind-view", "empty"].forEach((t) => window.app.workspace.getLeavesOfType(t).forEach((l) => { if (l !== keep) l.detach(); }));
+    }, [P, k]);
+    await win.waitForFunction(() => !!window.app.workspace.getLeavesOfType("cloudmind-view")[0]?.view?.mm?.renderer?.root?.group?.node?.isConnected, null, { timeout: 15000 });
+    await sleep(800);
+  };
+  const V = 'window.app.workspace.getLeavesOfType("cloudmind-view")[0].view';
+  const pt = (t) => win.evaluate((t) => { const v = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view; let f; const w = (x) => { if (String(x.getData("text")).startsWith(t)) f = x; x.children.forEach(w); }; w(v.mm.renderer.root); v.mm.renderer.moveNodeToCenter?.(f); return new Promise((res) => setTimeout(() => { const r = f.getRectInSvg(); const c = v.mm.el.getBoundingClientRect(); res({ x: c.left + r.left + r.width / 2, y: c.top + r.top + r.height / 2 }); }, 500)); }, t);
+  const kids = (t) => win.evaluate((t) => { const v = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view; let f; const w = (x) => { if (String(x.getData("text")) === t) f = x; x.children.forEach(w); }; w(v.mm.renderer.root); return f ? f.children.map((c) => c.getData("text")) : null; }, t);
+  const st = () => win.evaluate(() => { const v = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view; const s = v.debugState ? v.debugState() : {}; const b = document.querySelector(".smm-node-edit-wrap"); return { sel: v.mm.renderer.activeNodeList.map((n) => n.getData("text")), editFlag: v.mm.renderer.textEdit.isShowTextEdit(), boxShown: !!b && b.style.display !== "none", boxText: b?.innerText, focusInBox: !!document.activeElement?.closest?.(".smm-node-edit-wrap"), focus: (document.activeElement?.className?.toString?.() || document.activeElement?.tagName).slice(0, 30), selText: String(window.getSelection()) }; });
+  const cases = [
+    ["选「追溯」→ Tab 新建 → Backspace", "追溯", "Tab", null],
+    ["选「追溯处理人」→ Enter 新建同级 → Backspace", "追溯处理人", "Enter", null],
+    ["Tab 新建 → Enter 确认 → Backspace", "追溯", "Tab", "Enter"],
+    ["Tab 新建 → 点一下新节点 → Backspace", "追溯", "Tab", "click"],
+    ["Tab 新建 → Esc → Backspace", "追溯", "Tab", "Escape"],
+    ["Tab 新建 → 滚轮 → Backspace", "追溯", "Tab", "wheel"],
+  ];
+  const cdp = await win.context().newCDPSession(win);
+  for (const [name, target, key, then] of cases) {
+    await open();
+    const p = await pt(target); await win.mouse.click(p.x, p.y); await sleep(500);
+    const parentName = key === "Tab" ? "追溯" : "追溯";
+    const k0 = await kids(parentName);
+    await win.keyboard.press(key); await sleep(600);
+    const s1 = await st();
+    if (then === "Enter" || then === "Escape") { await win.keyboard.press(then); await sleep(400); }
+    if (then === "click") { const q = await pt("子主题"); await win.mouse.click(q.x, q.y); await sleep(500); }
+    if (then === "wheel") { const c = await win.evaluate(() => { const r = window.app.workspace.getLeavesOfType("cloudmind-view")[0].view.mm.el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }); for (let i = 0; i < 5; i++) { await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: c.x, y: c.y, deltaX: 0, deltaY: 40 }); await sleep(40); } await sleep(500); }
+    const s2 = await st();
+    const k1 = await kids(parentName);
+    await win.keyboard.press("Backspace"); await sleep(600);
+    const k2 = await kids(parentName);
+    const s3 = await st();
+    console.log(`\n【${name}】\n  新建后: ${JSON.stringify(s1)}\n  按键前: ${JSON.stringify(s2)}\n  追溯的子节点: 新建前 ${JSON.stringify(k0)} → 按 Backspace 前 ${JSON.stringify(k1)} → 按后 ${JSON.stringify(k2)}\n  按后状态: ${JSON.stringify(s3)}`);
+  }
+  await app.close();
+  process.exit(0);
+}
+// 和用户一样同时开 4 张导图标签页：在当前标签页点节点按 Backspace，检查删的是不是当前这张、后台的有没有被误删
+if (MODE === "multi") {
+  const files = ["多图/鸿蒙版本.md", "多图/资产治理.md", "多图/启动耗时.md", "多图/乐元素面试.md"];
+  await win.evaluate(async (files) => {
+    const leaves = [];
+    for (const p of files) { const l = window.app.workspace.getLeaf(true); await l.openFile(window.app.vault.getAbstractFileByPath(p)); leaves.push(l); }
+    ["markdown", "empty"].forEach((t) => window.app.workspace.getLeavesOfType(t).forEach((l) => l.detach()));
+    window.__ml = leaves;
+  }, files);
+  await win.waitForFunction(() => window.app.workspace.getLeavesOfType("cloudmind-view").length === 4, null, { timeout: 20000 });
+  await sleep(1500);
+  const counts = () => win.evaluate(() => Object.fromEntries(window.app.workspace.getLeavesOfType("cloudmind-view").map((l) => { let n = 0; const w = (x) => { n++; x.children.forEach(w); }; if (l.view.mm) w(l.view.mm.renderer.root); return [l.view.file.basename, n]; })));
+  const activate = async (base) => {
+    // 像用户一样点标签页标题
+    const ok = await win.evaluate((base) => { const l = window.app.workspace.getLeavesOfType("cloudmind-view").find((l) => l.view.file.basename === base); const h = l.tabHeaderEl; const r = h.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, base);
+    await win.mouse.click(ok.x, ok.y); await sleep(900);
+  };
+  const nodes = () => win.evaluate(() => { const v = window.app.workspace.getActiveViewOfType(window.app.workspace.getLeavesOfType("cloudmind-view")[0].view.constructor); if (!v?.mm) return []; v.mm.view.fit(undefined, true, 40); const c = v.mm.el.getBoundingClientRect(); const out = []; const w = (x) => { if (!x.isRoot) { const r = x.getRectInSvg(); if (r.left > 4 && r.top > 4 && r.left + r.width < c.width - 4 && r.top + r.height < c.height - 4) out.push({ t: x.getData("text"), x: c.left + r.left + Math.min(r.width / 2, 20), y: c.top + r.top + r.height / 2 }); } x.children.forEach(w); }; w(v.mm.renderer.root); return out; });
+  const order = ["启动耗时", "资产治理", "乐元素面试", "鸿蒙版本", "启动耗时", "资产治理", "启动耗时"];
+  let bad = 0;
+  for (const [i, base] of order.entries()) {
+    await activate(base);
+    await sleep(500);
+    const l = await nodes();
+    if (!l.length) { console.log("  (没有可点节点)", base); continue; }
+    const p = l[(i * 3) % l.length];
+    await win.mouse.click(p.x, p.y); await sleep(300);
+    // 有一半的情况：点完节点后用键盘切走再切回（鼠标不动）
+    if (i % 2 === 1) { await win.keyboard.press("Control+Tab"); await sleep(500); await win.keyboard.press("Control+Shift+Tab"); await sleep(500); }
+    const c0 = await counts();
+    await win.keyboard.press("Backspace"); await sleep(600);
+    const c1 = await counts();
+    const changed = Object.keys(c0).filter((k) => c0[k] !== c1[k]);
+    const ok = changed.length === 1 && changed[0] === base;
+    if (!ok) bad++;
+    console.log(`${ok ? "✓" : "✗"} 当前「${base}」点「${String(p.t).slice(0, 10)}」→ Backspace：${changed.length ? "变化的导图 " + changed.map((k) => `${k}(${c0[k]}→${c1[k]})`).join("、") : "没有任何导图被删"}`);
+  }
+  console.log(`\n多标签页：${order.length - bad}/${order.length} 正确`);
+  await app.close();
+  process.exit(0);
+}
 // 多个导图标签页：Ctrl+点击双链打开另一张导图后，在新导图里按 Backspace，看删的是哪张图
 if (MODE === "tabs") {
   const A = "---\ncloudmind: true\ncloudmind-layout: logicalStructure\n---\n# 图A\n## A甲\n## 去 [[图B]]\n## A丙\n";

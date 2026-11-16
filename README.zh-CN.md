@@ -132,6 +132,7 @@ cloudmind-theme: cloudBox
 | 编辑时按 `Esc` | 取消这次编辑，恢复原文字 |
 | `Del` / `Backspace` | 删除节点（含子节点） |
 | `Shift+Backspace` | 只删当前节点 |
+| 新建节点后直接按 `Backspace` | 撤销这次新建（编辑框为空时按也会删掉节点） |
 | `/` | 折叠 / 展开 |
 | `Ctrl+G` | 概要 |
 | `Ctrl+B` | 加粗 |

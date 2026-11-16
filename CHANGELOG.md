@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.11
+
+- `Backspace` / `Delete` right after creating a topic with `Tab` / `Enter` (while its default text is still selected) now removes the new topic, instead of only clearing its text. `Backspace` in an empty edit box also removes the topic. Holding the key down to clear text never deletes the topic, and existing topics keep normal text editing.
+
 ## 0.4.10
 
 - Fixed: `Backspace` / `Delete` could stop working after typing Chinese (or another IME language) for a while. If the input method's "composing" state got stuck, every later key press was treated as editing pinyin and ignored. The composing state is now only respected when the cursor is actually in a text field.

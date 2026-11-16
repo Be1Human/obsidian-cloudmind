@@ -47,7 +47,7 @@ export default class CloudMindPlugin extends Plugin {
           const shown = views.filter((v) => v.isShownNow());
           if (!shown.length) return;
           const decisions = keyLog.decisions();
-          const handled = decisions.some((d) => d.result === "deleted" || d.result === "text" || d.result === "composing");
+          const handled = decisions.some((d) => d.result.startsWith("deleted") || d.result === "text" || d.result === "composing");
           const states = views.map((v) => v.debugState());
           const someoneSelected = states.some((s) => s.shown && Array.isArray(s.sel) && s.sel.length > 0);
           // 在笔记编辑器 / 输入框里正常打字删字，不记

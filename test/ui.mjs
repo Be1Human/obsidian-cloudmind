@@ -557,6 +557,37 @@ cloudmind: true
   ok("double-click enters editing (no dialog opened)", (await page.evaluate(() => window.mm().renderer.textEdit.isShowTextEdit())) && !(await page.evaluate(() => !!document.querySelector(".modal"))));
   await page.keyboard.press("Escape"); await page.waitForTimeout(200);
 }
+// ---------- 22. 新建节点后直接按 Backspace = 撤销新建；空编辑框按 Backspace = 删节点；改过的不删 ----------
+{
+  const MD = "---\ncloudmind: true\n---\n# 根\n## 甲\n- 甲1\n## 乙\n";
+  const load = async () => { await page.evaluate((t) => window.__view.setViewData(t, true), MD); await page.waitForTimeout(600); };
+  const pick = (nm) => page.evaluate((nm) => { let f; const w = (x) => { if (x.getData("text") === nm) f = x; x.children.forEach(w); }; w(window.mm().renderer.root); window.mm().execCommand("CLEAR_ACTIVE_NODE"); f.active(); }, nm);
+  const tree = () => page.evaluate(() => { const s = (n) => n.getData("text") + (n.children.length ? "(" + n.children.map(s).join(",") + ")" : ""); return s(window.mm().renderer.root); });
+  const editing = () => page.evaluate(() => window.mm().renderer.textEdit.isShowTextEdit());
+
+  await load(); await pick("甲1"); await page.keyboard.press("Tab"); await page.waitForTimeout(500);
+  ok("Tab creates a child in edit mode", (await editing()) && (await tree()).includes("甲1(") , await tree());
+  await page.keyboard.press("Backspace"); await page.waitForTimeout(500);
+  ok("Backspace right after Tab removes the new topic", (await tree()) === "根(甲(甲1),乙)" && !(await editing()), await tree());
+
+  await load(); await pick("甲1"); await page.keyboard.press("Enter"); await page.waitForTimeout(500);
+  await page.keyboard.press("Delete"); await page.waitForTimeout(500);
+  ok("Delete right after Enter removes the new sibling", (await tree()) === "根(甲(甲1),乙)", await tree());
+
+  await load(); await pick("甲1"); await page.keyboard.press("Tab"); await page.waitForTimeout(500);
+  await page.keyboard.type("新的"); await page.keyboard.press("Backspace"); await page.waitForTimeout(300);
+  ok("after typing, Backspace deletes a character", (await editing()) && (await page.evaluate(() => document.querySelector(".smm-node-edit-wrap").innerText.trim())) === "新");
+  await page.keyboard.press("Backspace"); await page.waitForTimeout(200);
+  ok("...down to an empty box, topic still there", (await editing()) && (await tree()).includes("甲1("));
+  await page.keyboard.press("Backspace"); await page.waitForTimeout(500);
+  ok("Backspace on an empty edit box removes the topic", (await tree()) === "根(甲(甲1),乙)" && !(await editing()), await tree());
+
+  await load(); await pick("乙"); await page.keyboard.press("F2"); await page.waitForTimeout(300);
+  await page.keyboard.press("Control+a"); await page.keyboard.press("Backspace"); await page.waitForTimeout(300);
+  ok("existing topic: select all + Backspace only clears the text", (await editing()) && (await tree()).includes("乙"));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(300);
+  ok("...and Esc restores it", (await tree()) === "根(甲(甲1),乙)", await tree());
+}
 console.log("page errors:", errors.length ? errors : "none");
 ok("no page errors", errors.length === 0);
 await browser.close();

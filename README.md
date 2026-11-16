@@ -130,6 +130,7 @@ cloudmind-theme: cloudBox
 | `Esc` while editing | Cancel the edit (restores the text) |
 | `Del` / `Backspace` | Delete topic with children |
 | `Shift+Backspace` | Delete only the topic |
+| `Backspace` right after creating a topic | Remove the new topic (also on an empty edit box) |
 | `/` | Fold / unfold |
 | `Ctrl+G` | Summary |
 | `Ctrl+B` | Bold |

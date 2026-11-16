@@ -615,6 +615,11 @@ export class CloudMindView extends TextFileView {
       }
     });
     mm.on("node_mousedown", () => (this.lastNodeDown = performance.now()));
+    // 库在新建节点后会以 isInserting=true 触发一次双击，进入编辑：记下来，用于“新建后按 Backspace = 撤销新建”
+    mm.on("node_dblclick", (node: any, _e: unknown, isInserting?: boolean) => {
+      this.freshEdit = isInserting ? { node, text: String(node?.getData?.("text") ?? "") } : null;
+    });
+    mm.on("hide_text_edit", () => (this.freshEdit = null));
     mm.on("node_dblclick", (node: any) => keyLog.note("dblclick " + String(node?.getData?.("text") ?? "").slice(0, 10)));
     mm.on("node_click", (node: any, e: MouseEvent) => {
       keyLog.note("click " + String(node?.getData?.("text") ?? "").slice(0, 10));
@@ -735,6 +740,25 @@ export class CloudMindView extends TextFileView {
     });
   }
 
+  private freshEdit: { node: any; text: string } | null = null;
+
+  /** 编辑框里按删除键时，是否应该删掉整个节点；返回原因，或 null（= 正常删字） */
+  private deleteFromEditBox(e: KeyboardEvent): string | null {
+    if (e.shiftKey || e.ctrlKey || e.metaKey || e.repeat) return null;
+    const te = this.mm?.renderer?.textEdit;
+    const box: HTMLElement | null = te?.textEditNode ?? null;
+    const node = te?.currentNode;
+    if (!box || !node || node.isRoot) return null;
+    const text = box.innerText.replace(/\n+$/, "");
+    if (text === "") return "empty";
+    const fresh = this.freshEdit;
+    if (fresh && fresh.node === node && text === fresh.text) {
+      const sel = (box.ownerDocument.defaultView ?? window).getSelection();
+      if (sel && sel.toString().replace(/\n+$/, "") === text) return "fresh";
+    }
+    return null;
+  }
+
   private onDeleteKey(e: KeyboardEvent) {
     const isDel = e.code === "Backspace" || e.code === "Delete" || e.key === "Backspace" || e.key === "Delete";
     if (!isDel || !this.mm || e.altKey) return;
@@ -746,8 +770,24 @@ export class CloudMindView extends TextFileView {
     // 但只有焦点在能输入的地方才可能在组字：焦点在 body 上时还带着“组字中”标记，说明输入法状态卡住了，忽略它
     if (e.isComposing && targetEditable) return why("composing");
     if (e.isComposing) keyLog.note("stale-composing ignored");
-    // 光标真的在一个显示着的编辑框里：这是在删文字
-    if (t?.closest?.(".smm-node-edit-wrap") && this.editBoxShown()) return why("text");
+    // 光标真的在一个显示着的编辑框里：通常是在删文字。两种例外直接删节点：
+    //  ① 刚新建、还没改过的节点（默认文字整段选中）→ 撤销这次新建
+    //  ② 编辑框已经是空的 → 再按删除就删掉这个节点（大纲软件的习惯）
+    if (t?.closest?.(".smm-node-edit-wrap") && this.editBoxShown()) {
+      const kind = this.deleteFromEditBox(e);
+      if (!kind) return why("text");
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const te = this.mm.renderer.textEdit;
+      const node = te.currentNode;
+      this.endTextEdit(true);
+      if (node && this.nodeInTree(node) && !node.isRoot) {
+        this.mm.execCommand("CLEAR_ACTIVE_NODE");
+        node.active();
+        this.deleteSelection(false);
+      }
+      return why("deleted-from-edit:" + kind);
+    }
     // 光标在弹层里的输入框（比如颜色选择）：交给它
     if (this.popEl?.isConnected && t && this.popEl.contains(t) && t.matches?.("input, textarea")) return why("popover-input");
     if (!this.isShownNow()) return why("hidden");
