@@ -545,6 +545,10 @@ export class CloudMindView extends TextFileView {
       customCheckEnableShortcut: (e: KeyboardEvent) => this.canHandleKey(e),
     });
     this.mm = mm;
+    // 删除节点只走插件自己的 onDeleteKey（带“中心主题不能删”、只处理前台导图等保护）。
+    // 库自带的 Del|Backspace 快捷键会无条件 REMOVE_NODE（选中中心主题时会清空整张图），并拦掉这次按键，去掉它
+    mm.keyCommand?.removeShortcut?.("Del|Backspace");
+    mm.keyCommand?.removeShortcut?.("Shift+Backspace");
     // 库自己在 window 上还挂了“选中节点后打字进入编辑”的监听，不经过 customCheckEnableShortcut：
     // 后台标签页的导图也会响应，抢走前台的按键。包一层，只让显示着、归它管的导图处理
     const te = mm.renderer?.textEdit;

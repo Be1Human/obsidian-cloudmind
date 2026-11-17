@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.13
+
+- The mind-map library's own Backspace/Delete shortcut is removed; deleting topics only goes through the plugin's handler (on-screen map only, central topic protected). Before, a background map with its central topic selected could clear all its topics on a single Backspace.
+
 ## 0.4.12
 
 - Fixed: with more than one mind map open in tabs, `Backspace` in a topic's edit box did not delete text. Mind maps in background tabs still listened to the keyboard: they took the key press as their own "delete topic" shortcut, so the character was not deleted and a selected topic in the hidden map was removed instead (`Enter` likewise added a topic there). Only the mind map that is on screen now reacts to the keyboard, and only to its own edit box.
