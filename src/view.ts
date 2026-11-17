@@ -545,6 +545,18 @@ export class CloudMindView extends TextFileView {
       customCheckEnableShortcut: (e: KeyboardEvent) => this.canHandleKey(e),
     });
     this.mm = mm;
+    // 库自己在 window 上还挂了“选中节点后打字进入编辑”的监听，不经过 customCheckEnableShortcut：
+    // 后台标签页的导图也会响应，抢走前台的按键。包一层，只让显示着、归它管的导图处理
+    const te = mm.renderer?.textEdit;
+    if (te?.onKeydown) {
+      const orig = te.onKeydown as (e: KeyboardEvent) => void;
+      window.removeEventListener("keydown", orig);
+      const gated = (e: KeyboardEvent) => {
+        if (this.canHandleKey(e)) orig(e);
+      };
+      te.onKeydown = gated;
+      if (mm.opt.enableAutoEnterTextEditWhenKeydown) window.addEventListener("keydown", gated);
+    }
     this.appliedRainbow = this.curRainbow();
     this.lastW = this.canvasEl.clientWidth;
     this.lastH = this.canvasEl.clientHeight;
@@ -695,8 +707,7 @@ export class CloudMindView extends TextFileView {
     if (!te?.isShowTextEdit?.() && !this.editBoxShown()) return;
     // [[ 笔记列表开着时，Esc 先关列表
     if (this.wiki?.isOpen) return;
-    const t = e.target as HTMLElement | null;
-    if (!t?.closest?.(".smm-node-edit-wrap") && !this.canHandleKey(e)) return;
+    if (!this.canHandleKey(e)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     // 取消：恢复原文字再关闭
@@ -764,7 +775,12 @@ export class CloudMindView extends TextFileView {
     if (!isDel || !this.mm || e.altKey) return;
     const name = this.file?.basename ?? "?";
     const why = (result: string, detail?: Record<string, unknown>) => keyLog.decide({ view: name, result, detail });
+    // 不在屏幕上的导图（后台标签页）完全不碰这个按键
+    if (!this.isShownNow()) return why("hidden");
     const t = e.target as HTMLElement | null;
+    // 焦点在别的导图的编辑框里：那是别人的事
+    const box = t?.closest?.(".smm-node-edit-wrap") ?? null;
+    if (box && box !== (this.mm.renderer.textEdit?.textEditNode ?? null)) return why("other-edit-box");
     const targetEditable = isEditableTarget(t);
     // 组字过程中（拼音还没上屏）的退格是删拼音，不能当成删节点。
     // 但只有焦点在能输入的地方才可能在组字：焦点在 body 上时还带着“组字中”标记，说明输入法状态卡住了，忽略它
@@ -790,7 +806,6 @@ export class CloudMindView extends TextFileView {
     }
     // 光标在弹层里的输入框（比如颜色选择）：交给它
     if (this.popEl?.isConnected && t && this.popEl.contains(t) && t.matches?.("input, textarea")) return why("popover-input");
-    if (!this.isShownNow()) return why("hidden");
     const reason = this.keyRejectReason(e);
     if (reason) return why(reason);
     if (!this.hasSel()) return why("no-selection");
@@ -887,19 +902,24 @@ export class CloudMindView extends TextFileView {
 
   /** 这个按键不归这个导图处理的原因；null = 归它 */
   private keyRejectReason(e: KeyboardEvent): string | null {
+    // 不在屏幕上的导图（后台标签页、折叠的面板）永远不处理键盘：
+    // 否则在另一张导图的编辑框里按 Backspace / Enter，会被后台导图当成快捷键，
+    // 吃掉这次按键（字删不掉），还会删掉 / 新增后台导图里的节点
+    if (!this.isShownNow()) return "hidden";
     const t = e.target as HTMLElement | null;
     const blocker = t?.closest?.(".modal-container, .menu, .suggestion-container, .prompt, .cm-popover");
     if (blocker) return "focus-in:" + describeEl(blocker);
-    const editing = !!t?.closest?.(".smm-node-edit-wrap");
-    if (
-      !editing &&
-      (t?.instanceOf?.(HTMLInputElement) || t?.instanceOf?.(HTMLTextAreaElement) || (t && t.isContentEditable))
-    )
+    const box = t?.closest?.(".smm-node-edit-wrap") ?? null;
+    if (box) {
+      // 编辑框必须是这张导图自己的
+      const mine: HTMLElement | null = this.mm?.renderer?.textEdit?.textEditNode ?? null;
+      return box === mine && this.editBoxShown() ? null : "other-edit-box";
+    }
+    if (t?.instanceOf?.(HTMLInputElement) || t?.instanceOf?.(HTMLTextAreaElement) || (t && t.isContentEditable))
       return "focus-in:" + describeEl(t);
-    if (editing) return null;
     if (this.app.workspace.getActiveViewOfType(CloudMindView) === this) return null;
-    // 鼠标停在这个导图上（且导图确实显示着）也算
-    if (this.mouseIn && this.isShownNow()) return null;
+    // 鼠标停在这个导图上也算
+    if (this.mouseIn) return null;
     return "not-active";
   }
 

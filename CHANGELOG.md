@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.12
+
+- Fixed: with more than one mind map open in tabs, `Backspace` in a topic's edit box did not delete text. Mind maps in background tabs still listened to the keyboard: they took the key press as their own "delete topic" shortcut, so the character was not deleted and a selected topic in the hidden map was removed instead (`Enter` likewise added a topic there). Only the mind map that is on screen now reacts to the keyboard, and only to its own edit box.
+
 ## 0.4.11
 
 - `Backspace` / `Delete` right after creating a topic with `Tab` / `Enter` (while its default text is still selected) now removes the new topic, instead of only clearing its text. `Backspace` in an empty edit box also removes the topic. Holding the key down to clear text never deletes the topic, and existing topics keep normal text editing.

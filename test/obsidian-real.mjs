@@ -374,6 +374,40 @@ if (MODE === "soak") {
   await app.close();
   process.exit(0);
 }
+// 后台还有别的导图标签页时，在当前导图的编辑框里按 Backspace / Enter
+if (MODE === "bgedit") {
+  const A = "---\ncloudmind: true\ncloudmind-layout: logicalStructure\n---\n# 后台图\n## 后台甲\n## 后台乙\n## 后台丙\n";
+  const B = "---\ncloudmind: true\ncloudmind-layout: logicalStructure\n---\n# 当前图\n## 当前甲\n## 当前乙\n";
+  await win.evaluate(async ([A, B]) => {
+    for (const [p, t] of [["读书/后台图.md", A], ["读书/当前图.md", B]]) { const f = window.app.vault.getAbstractFileByPath(p); if (f) await window.app.vault.modify(f, t); else await window.app.vault.create(p, t); }
+    const la = window.app.workspace.getLeaf(true); await la.openFile(window.app.vault.getAbstractFileByPath("读书/后台图.md"));
+    ["markdown", "cloudmind-view", "empty"].forEach((t) => window.app.workspace.getLeavesOfType(t).forEach((l) => { if (l !== la) l.detach(); }));
+  }, [A, B]);
+  await win.waitForFunction(() => !!window.app.workspace.getLeavesOfType("cloudmind-view")[0]?.view?.mm?.renderer?.root?.group?.node?.isConnected, null, { timeout: 15000 });
+  await sleep(800);
+  const view = (base) => `window.app.workspace.getLeavesOfType("cloudmind-view").map(l=>l.view).find(v=>v.file?.basename===${JSON.stringify(base)})`;
+  const pt = (base, t) => win.evaluate(([base, t]) => { const v = window.app.workspace.getLeavesOfType("cloudmind-view").map((l) => l.view).find((v) => v.file?.basename === base); let f; const w = (x) => { if (x.getData("text") === t) f = x; x.children.forEach(w); }; w(v.mm.renderer.root); const r = f.getRectInSvg(); const c = v.mm.el.getBoundingClientRect(); return { x: c.left + r.left + r.width / 2, y: c.top + r.top + r.height / 2 }; }, [base, t]);
+  const kids = (base) => win.evaluate((base) => { const v = window.app.workspace.getLeavesOfType("cloudmind-view").map((l) => l.view).find((v) => v.file?.basename === base); return v.mm.renderer.root.children.map((n) => n.getData("text")); }, base);
+  // 在后台图里选中一个节点（用户切走时常常留着选中）
+  let p = await pt("后台图", "后台乙"); await win.mouse.click(p.x, p.y); await sleep(300);
+  // 新标签页打开当前图
+  await win.evaluate(async () => { const l = window.app.workspace.getLeaf(true); await l.openFile(window.app.vault.getAbstractFileByPath("读书/当前图.md")); });
+  await win.waitForFunction(() => window.app.workspace.getLeavesOfType("cloudmind-view").length === 2 && window.app.workspace.getActiveFile()?.basename === "当前图", null, { timeout: 15000 });
+  await win.waitForFunction(() => { const v = window.app.workspace.getLeavesOfType("cloudmind-view").map((l) => l.view).find((v) => v.file?.basename === "当前图"); return !!v?.mm?.renderer?.root?.group?.node?.isConnected; }, null, { timeout: 15000 });
+  await sleep(900);
+  p = await pt("当前图", "当前甲"); await win.mouse.dblclick(p.x, p.y); await sleep(400);
+  await win.keyboard.press("End"); await win.keyboard.type("abc"); await sleep(150);
+  const box = () => win.evaluate(() => [...document.querySelectorAll(".smm-node-edit-wrap")].filter((b) => b.style.display !== "none").map((b) => b.innerText)[0]);
+  console.log("打字后编辑框:", JSON.stringify(await box()), " 后台图:", JSON.stringify(await kids("后台图")));
+  await win.keyboard.press("Backspace"); await sleep(250);
+  console.log("按 Backspace 后编辑框:", JSON.stringify(await box()), " 后台图:", JSON.stringify(await kids("后台图")));
+  await win.keyboard.press("Backspace"); await sleep(250);
+  console.log("再按 Backspace 编辑框:", JSON.stringify(await box()), " 后台图:", JSON.stringify(await kids("后台图")));
+  await win.keyboard.press("Enter"); await sleep(500);
+  console.log("按 Enter 后  当前图:", JSON.stringify(await kids("当前图")), " 后台图:", JSON.stringify(await kids("后台图")));
+  await app.close();
+  process.exit(0);
+}
 // 截图场景：新建子主题（Enter / Tab）后直接按 Backspace，以及点一下别处再按
 if (MODE === "newnode") {
   const P = "多图/启动耗时.md";
